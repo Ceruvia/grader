@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"errors"
+	"os"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/errorz"
@@ -9,12 +11,14 @@ import (
 
 func TestCreateNewCompiler(t *testing.T) {
 	t.Run("it should build a c compiler", func(t *testing.T) {
-		compiler, err := CreateNewCompiler("c", "none", "hello.c", "hello")
+		compiler, err := CreateNewCompiler("c", "none", []string{"hello.c"}, "hello")
 
 		want := &Compiler{
-			Language: "c",
-			Builder:  "none",
-			Script:   "gcc hello.c -o hello",
+			Language:   "c",
+			Compiler:   "gcc",
+			Builder:    "none",
+			InputFiles: []string{"hello.c"},
+			OutputName: "hello",
 		}
 
 		utils.AssertNotError(t, err)
@@ -22,15 +26,34 @@ func TestCreateNewCompiler(t *testing.T) {
 	})
 
 	t.Run("it should return error when supplied an unsupported language", func(t *testing.T) {
-		_, err := CreateNewCompiler("unsupported", "none", "none", "none")
+		_, err := CreateNewCompiler("unsupported", "none", []string{}, "none")
 		utils.AssertError(t, err, errorz.ErrLanguageUnsupported)
 	})
 }
 
 func TestCompile(t *testing.T) {
-	compiler, err := CreateNewCompiler("c", "none", "hello.c", "hello")
-	utils.AssertNotError(t, err)
+	t.Run("compile c", func(t *testing.T) {
+		compiler, err := CreateNewCompiler("c", "none", []string{"hello.c"}, "hello")
+		utils.AssertNotError(t, err)
 
-	err = compiler.Compile("compiler.go", "compiler_test.go")
-	utils.AssertNotError(t, err)
+		err = compiler.Compile("test/c")
+		utils.AssertNotError(t, err)
+
+		if _, err := os.Stat("test/c/hello"); errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("compiled binary not found")
+		}
+	})
+}
+
+func TestScriptArgs(t *testing.T) {
+	t.Run("c script", func(t *testing.T) {
+		compiler, err := CreateNewCompiler("c", "none", []string{"hello.c", "hai.c"}, "hello")
+
+		utils.AssertNotError(t, err)
+
+		got := compiler.ScriptArgs()
+		want := []string{"hello.c", "hai.c", "-o", "hello"}
+
+		utils.AssertDeep(t, got, want)
+	})
 }
