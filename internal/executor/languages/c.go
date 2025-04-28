@@ -54,7 +54,7 @@ func (exc *CExecutor) Execute() error {
 }
 
 func (exc *CExecutor) Compile() (string, string, error) {
-	exc.BinaryExecutable = "ex" // Redundant name, might be changed to user supplied name
+	exc.BinaryExecutable = "test_ex" // Redundant name, might be changed to user supplied name
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
