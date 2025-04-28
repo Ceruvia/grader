@@ -1,11 +1,19 @@
 package models
 
 type Submission struct {
-	Language  string
-	Testcases []Testcase
+	Language            string
+	Testcases           []Testcase
+	
+	Workdir             string
+	HasCompletedGrading bool
+	TimeStarted         string
+	TimeCompleted       string
+	FinalScore          float32
 }
 
 type Testcase struct {
-	Input          string
-	ExpectedOutput string
+	InputFilename          string
+	ExpectedOutputFilename string
+	ActualOutputFilename   string
+	Verdict                string
 }
