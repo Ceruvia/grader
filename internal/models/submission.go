@@ -1,9 +1,12 @@
 package models
 
 type Submission struct {
-	Language            string
-	Testcases           []Testcase
-	
+	Language   string
+	UseBuilder bool
+	Builder    string
+	Files      []string
+	Testcases  []Testcase
+
 	Workdir             string
 	HasCompletedGrading bool
 	TimeStarted         string

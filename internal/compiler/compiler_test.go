@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/errorz"
+	errorz "github.com/Ceruvia/grader/internal/errors"
 	"github.com/Ceruvia/grader/internal/utils"
 )
 
@@ -17,7 +17,7 @@ func TestCreateNewCompiler(t *testing.T) {
 			Language:   "c",
 			Compiler:   "gcc",
 			Builder:    "none",
-			InputFiles: []string{"hello.c"},
+			Files:      []string{"hello.c"},
 			OutputName: "hello",
 		}
 
