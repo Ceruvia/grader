@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"os/exec"
 	"time"
+
+	"github.com/Ceruvia/grader/internal/models"
 )
 
 type CExecutor struct {
@@ -102,12 +104,23 @@ func (exc *CExecutor) Run(stdin io.Reader, stdout, stderr io.Writer) error {
 	return err
 }
 
-func (exc *CExecutor) RunWithInput() error {
-	return nil
-}
+func (exc *CExecutor) RunAgainstTestcase(input, expectedOutput string) (models.Verdict, string, string, error) {
+	var stdinBuf, stdoutBuf, stderrBuf bytes.Buffer
+	stdinBuf.Write([]byte(input))
 
-func (exc *CExecutor) Grade() error {
-	return nil
+	if err := exc.Run(&stdinBuf, &stdoutBuf, &stderrBuf); err != nil {
+		if err == context.DeadlineExceeded {
+			return models.VerdictTLE, stdoutBuf.String(), stderrBuf.String(), err
+		}
+		return models.VerdictRE, stdoutBuf.String(), stderrBuf.String(), err
+	}
+
+	verdict := models.VerdictWA
+	if stdoutBuf.String() == expectedOutput {
+		verdict = models.VerdictAC
+	}
+
+	return verdict, stdoutBuf.String(), stderrBuf.String(), nil
 }
 
 func (exc *CExecutor) GradeAll() error {

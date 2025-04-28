@@ -11,6 +11,7 @@ import (
 	"testing/fstest"
 
 	language "github.com/Ceruvia/grader/internal/executor/languages"
+	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/utils"
 )
 
@@ -220,6 +221,41 @@ func TestRun(t *testing.T) {
 			if !strings.Contains(err.Error(), "signal") {
 				t.Errorf("expected a signal error, instead got %q", err)
 			}
+		})
+	}
+}
+
+func TestRunAgainstTestcase(t *testing.T) {
+	Tests := []struct {
+		Title          string
+		Workdir        string
+		Filename       string
+		Input          string
+		ExpectedOutput string
+		WantVerdict    models.Verdict
+	}{
+		{Title: "Hello world", Workdir: "tests/c/binaries", Filename: "hello", Input: "", ExpectedOutput: "Hello, world!\n", WantVerdict: models.VerdictAC},
+		{Title: "Hello world wrong", Workdir: "tests/c/binaries", Filename: "hello", Input: "", ExpectedOutput: "Hello, Abil :o\n", WantVerdict: models.VerdictWA},
+		{Title: "Sum", Workdir: "tests/c/binaries", Filename: "sum", Input: "2 3", ExpectedOutput: "5\n", WantVerdict: models.VerdictAC},
+		{Title: "Sum wrong", Workdir: "tests/c/binaries", Filename: "sum", Input: "20 3", ExpectedOutput: "5\n", WantVerdict: models.VerdictWA},
+		{Title: "Null pointer", Workdir: "tests/c/binaries_error", Filename: "nullpointer", Input: "20 3", ExpectedOutput: "5\n", WantVerdict: models.VerdictRE},
+	}
+
+	for _, test := range Tests {
+		t.Run(fmt.Sprintf("it should return %q when grading %q", test.WantVerdict.Name, test.Title), func(t *testing.T) {
+			executor := language.CExecutor{
+				Workdir:          test.Workdir,
+				BinaryExecutable: test.Filename,
+			}
+
+			verdict, _, _, _ := executor.RunAgainstTestcase(test.Input, test.ExpectedOutput)
+
+			// t.Log(verdict)
+			// t.Log(stdout)
+			// t.Log(stderr)
+			// t.Log(err)
+
+			utils.AssertDeep(t, verdict, test.WantVerdict)
 		})
 	}
 }
