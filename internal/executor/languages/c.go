@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/Ceruvia/grader/internal/models"
@@ -123,10 +125,62 @@ func (exc *CExecutor) RunAgainstTestcase(input, expectedOutput string) (models.V
 	return verdict, stdoutBuf.String(), stderrBuf.String(), nil
 }
 
-func (exc *CExecutor) GradeAll() error {
-	return nil
-}
+// func (exc *CExecutor) GradeAll() error {
+// 	result := make(chan models.Verdict)
+// 	lenOfTC := len(exc.InputFiles)
+
+// 	for range lenOfTC {
+// 		go func() {
+
+// 		}()
+// 	}
+
+// }
 
 func (exc *CExecutor) ScriptArgs() []string {
 	return append(exc.BuildFiles, []string{"-o", exc.BinaryExecutable}...)
+}
+
+func (exc *CExecutor) AddWorkdirPrefix(s string) string {
+	return exc.Workdir + "/" + s
+}
+
+func (exc *CExecutor) ReadInputOutputFile(idx int) (string, string, error) {
+	var wg sync.WaitGroup
+
+	contents := make([]string, 2)
+	errors := make([]error, 2)
+
+	for i, path := range []string{exc.AddWorkdirPrefix(exc.InputFiles[idx]), exc.AddWorkdirPrefix(exc.OutputFiles[idx])} {
+		wg.Add(1)
+
+		go func(idx int, p string) {
+			defer wg.Done()
+
+			data, err := ioutil.ReadFile(p)
+			if err != nil {
+				errors[idx] = err
+				return
+			}
+
+			contents[idx] = string(data)
+		}(i, path)
+	}
+
+	wg.Wait()
+
+	inputData := contents[0]
+	inputError := errors[0]
+	outputData := contents[1]
+	outputError := errors[1]
+
+	if inputError != nil {
+		return "", "", inputError
+	}
+
+	if outputError != nil {
+		return "", "", inputError
+	}
+
+	return inputData, outputData, nil
 }

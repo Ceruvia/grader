@@ -260,6 +260,53 @@ func TestRunAgainstTestcase(t *testing.T) {
 	}
 }
 
-// t.Run("it is able to run binary with input and give output", func(t *testing.T) {})
-// t.Run("it is able to grade singular testcase", func(t *testing.T) {})
+// func GradeAll(t *testing.T) {
+// 	t.Run("it should correctly grade ADT assignment", func(t *testing.T) {
+// 		excecutor := language.CExecutor{
+// 			Workdir:          "tests/c/multiple",
+// 			InputFiles:       []string{"1.in", "2.in", "3.in", "4.in", "5.in", "6.in", "7.in", "8.in", "9.in", "10.in"},
+// 			OutputFiles:      []string{"1.out", "2.out", "3.out", "4.out", "5.out", "6.out", "7.out", "8.out", "9.out", "10.out"},
+// 			BinaryExecutable: "ganjilgenap",
+// 		}
+
+// 		err := excecutor.GradeAll()
+// 	})
+// }
+
+func TestReadIOFiles(t *testing.T) {
+	
+	var (
+		InputFiles  []string = []string{"1.in", "2.in", "3.in"}
+		OutputFiles []string = []string{"1.out", "2.out", "3.out"}
+		WantInput   []string = []string{"1\r\n5", "1\r\n5", "1\r\n5"}
+		WantOutput  []string = []string{"10\n[0,1,1,2,3,5]\n", "10\n[0,1,1,2,3,5]\n", "10\n[0,1,1,2,3,5]\n"}
+	)
+	
+	// TODO: Switch this out to FSTest
+	excecutor := language.CExecutor{
+		Workdir:          "tests/c/multiple",
+		InputFiles:       InputFiles,
+		OutputFiles:      OutputFiles,
+		BinaryExecutable: "ganjilgenap",
+	}
+
+	for i := range InputFiles {
+		t.Run(fmt.Sprintf("it should succesfully read %q and %q", InputFiles[i], OutputFiles[i]), func(t *testing.T) {
+			input, output, err := excecutor.ReadInputOutputFile(0)
+			if err != nil {
+				t.Fatalf("got error when expecting none: %q", err)
+			}
+
+			if input != WantInput[i] {
+				t.Errorf("got %q, want %q", input, WantInput[i])
+			}
+
+			if output != WantOutput[i] {
+				t.Errorf("got %q, want %q", output, WantOutput[i])
+			}
+		})
+	}
+
+}
+
 // t.Run("it is able to grade all testcase", func(t *testing.T) {})
