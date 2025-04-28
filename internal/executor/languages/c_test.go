@@ -2,6 +2,7 @@ package language_test
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"strings"
@@ -88,10 +89,7 @@ func TestCompile(t *testing.T) {
 
 		utils.AssertNotError(t, err)
 
-		stdout, stderr, err := executor.Compile()
-
-		t.Log(stdout)
-		t.Log(stderr)
+		_, _, err = executor.Compile()
 
 		utils.AssertNotError(t, err)
 	})
@@ -100,42 +98,53 @@ func TestCompile(t *testing.T) {
 		executor, err := language.CreateNewCExecutor(
 			os.DirFS("."),
 			"tests/c/multiple",
-			[]string{"hello.c"},
+			[]string{"array.c", "ganjilgenap.c"},
 			[]string{},
 			[]string{},
 		)
 
 		utils.AssertNotError(t, err)
 
-		stdout, stderr, err := executor.Compile()
-
-		t.Log(stdout)
-		t.Log(stderr)
+		_, _, err = executor.Compile()
 
 		utils.AssertNotError(t, err)
 	})
 
-	t.Run("it should fail when compiling empty file", func(t *testing.T) {
-		executor, err := language.CreateNewCExecutor(
-			os.DirFS("."),
-			"tests/c/empty",
-			[]string{"empty.c"},
-			[]string{},
-			[]string{},
-		)
+	UncompileableTests := []struct {
+		Title    string
+		Filename string
+		CheckFor string
+	}{
+		{Title: "Empty file", Filename: "empty.c", CheckFor: "returned 1 exit status"},
+		{Title: "No include", Filename: "noinclude.c", CheckFor: "note: include ‘<stdio.h>’ or provide a declaration of ‘printf’"},
+		{Title: "Syntax error", Filename: "syntaxerror.c", CheckFor: "error: expected ‘;’ before ‘return’"},
+		{Title: "Type mismatch", Filename: "typemismatch.c", CheckFor: "error: initialization of ‘int’ from ‘char *’ makes integer from pointer without a cast"},
+		{Title: "Used function not found", Filename: "unfoundfunc.c", CheckFor: "error: implicit declaration of function ‘prinf’; did you mean ‘printf’?"},
+	}
 
-		utils.AssertNotError(t, err)
+	for _, test := range UncompileableTests {
+		t.Run(fmt.Sprintf("it should fail when compiling %q file", test.Title), func(t *testing.T) {
+			executor, err := language.CreateNewCExecutor(
+				os.DirFS("."),
+				"tests/c/uncompileable",
+				[]string{test.Filename},
+				[]string{},
+				[]string{},
+			)
 
-		_, stderr, err := executor.Compile()
+			utils.AssertNotError(t, err)
 
-		if err == nil {
-			t.Errorf("expected error, got none")
-		}
+			_, stderr, err := executor.Compile()
 
-		if !strings.Contains(stderr, "error: ld returned 1 exit status") {
-			t.Errorf("expected error code of 1, got %+v", stderr)
-		}
-	})
+			if err == nil {
+				t.Errorf("expected error, got none")
+			}
+
+			if !strings.Contains(stderr, test.CheckFor) {
+				t.Errorf("expected %q to be inside error, instead got %q", test.CheckFor, stderr)
+			}
+		})
+	}
 }
 
 // t.Run("it is able to compile to binary", func(t *testing.T) {})
