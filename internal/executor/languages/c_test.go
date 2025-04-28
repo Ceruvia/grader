@@ -92,6 +92,7 @@ func TestCompile(t *testing.T) {
 		_, _, err = executor.Compile()
 
 		utils.AssertNotError(t, err)
+		utils.AssertFileCreated(t, "tests/c/hello/test_ex")
 	})
 
 	t.Run("it should compile multiple file", func(t *testing.T) {
@@ -108,6 +109,7 @@ func TestCompile(t *testing.T) {
 		_, _, err = executor.Compile()
 
 		utils.AssertNotError(t, err)
+		utils.AssertFileCreated(t, "tests/c/multiple/test_ex")
 	})
 
 	UncompileableTests := []struct {
