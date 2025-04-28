@@ -1,6 +1,7 @@
 package language_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -61,7 +62,7 @@ func TestCreateNewExecutor(t *testing.T) {
 }
 
 func TestScriptArgs(t *testing.T) {
-	t.Run("return script args without supplied flags", func(t *testing.T) {
+	t.Run("it should return script args without supplied flags", func(t *testing.T) {
 		executor := language.CExecutor{
 			Workdir:          "hello",
 			BuildFiles:       []string{"hello.c"},
@@ -147,6 +148,46 @@ func TestCompile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRun(t *testing.T) {
+	t.Run("it should run a c binary without any inputs", func(t *testing.T) {
+		executor := language.CExecutor{
+			Workdir:          "tests/c/binaries",
+			BinaryExecutable: "hello",
+		}
+
+		var stdinBuf, stdoutBuf, stderrBuf bytes.Buffer
+
+		err := executor.Run(&stdinBuf, &stdoutBuf, &stderrBuf)
+
+		utils.AssertNotError(t, err)
+
+		want := "Hello, world!\n"
+		got := stdoutBuf.String()
+
+		utils.AssertDeep(t, got, want)
+	})
+
+	t.Run("it should run a c binary with inputs", func(t *testing.T) {
+		executor := language.CExecutor{
+			Workdir:          "tests/c/binaries",
+			BinaryExecutable: "sum",
+		}
+
+		var stdinBuf, stdoutBuf, stderrBuf bytes.Buffer
+
+		stdinBuf.Write([]byte("1, 2"))
+
+		err := executor.Run(&stdinBuf, &stdoutBuf, &stderrBuf)
+
+		utils.AssertNotError(t, err)
+
+		want := "1\n"
+		got := stdoutBuf.String()
+
+		utils.AssertDeep(t, got, want)
+	})
 }
 
 // t.Run("it is able to compile to binary", func(t *testing.T) {})

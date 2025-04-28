@@ -10,7 +10,7 @@ import (
 func AssertDeep[T any](t testing.TB, got, want T) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got error %+v, when expected %+v", got, want)
+		t.Errorf("got %+v, when expected %+v", got, want)
 	}
 }
 

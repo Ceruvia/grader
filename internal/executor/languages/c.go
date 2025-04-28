@@ -3,6 +3,8 @@ package language
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"io/fs"
 	"os/exec"
 	"time"
@@ -55,7 +57,7 @@ func (exc *CExecutor) Execute() error {
 
 func (exc *CExecutor) Compile() (string, string, error) {
 	// TODO: Redundant name, might be changed to user supplied name
-	exc.BinaryExecutable = "test_ex" 
+	exc.BinaryExecutable = "test_ex"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -77,8 +79,27 @@ func (exc *CExecutor) Compile() (string, string, error) {
 	return stdoutBuf.String(), stderrBuf.String(), err
 }
 
-func (exc *CExecutor) Run() error {
-	return nil
+func (exc *CExecutor) Run(stdin io.Reader, stdout, stderr io.Writer) error {
+	if exc.BinaryExecutable == "" {
+		return errors.New("dumbass")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "./"+exc.BinaryExecutable)
+	cmd.Dir = exc.Workdir
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	err := cmd.Run()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return ctx.Err()
+	}
+
+	return err
 }
 
 func (exc *CExecutor) RunWithInput() error {
