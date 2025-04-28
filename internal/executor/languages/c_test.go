@@ -188,10 +188,42 @@ func TestRun(t *testing.T) {
 
 		utils.AssertDeep(t, got, want)
 	})
+
+	CrashTests := []struct {
+		Title    string
+		Filename string
+	}{
+		{Title: "Divide by zero", Filename: "dividebyzero"},
+		{Title: "Infinite recursion", Filename: "infiniterecursion"},
+		{Title: "Null pointer", Filename: "nullpointer"},
+		{Title: "Out of bounds", Filename: "outofbounds"},
+	}
+
+	for _, test := range CrashTests {
+		t.Run(fmt.Sprintf("it should return error when running a %q binary", test.Title), func(t *testing.T) {
+			executor := language.CExecutor{
+				Workdir:          "tests/c/binaries_error",
+				BinaryExecutable: test.Filename,
+			}
+
+			var stdinBuf, stdoutBuf, stderrBuf bytes.Buffer
+			err := executor.Run(&stdinBuf, &stdoutBuf, &stderrBuf)
+
+			// log.Println(stdoutBuf)
+			// log.Println(stderrBuf)
+			// log.Println(err)
+
+			if err == nil {
+				t.Errorf("expected error, got none")
+			}
+
+			if !strings.Contains(err.Error(), "signal") {
+				t.Errorf("expected a signal error, instead got %q", err)
+			}
+		})
+	}
 }
 
-// t.Run("it is able to compile to binary", func(t *testing.T) {})
-// t.Run("it is able to run binary", func(t *testing.T) {})
 // t.Run("it is able to run binary with input and give output", func(t *testing.T) {})
 // t.Run("it is able to grade singular testcase", func(t *testing.T) {})
 // t.Run("it is able to grade all testcase", func(t *testing.T) {})
