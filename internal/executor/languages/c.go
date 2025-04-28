@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os/exec"
+	"sort"
 	"sync"
 	"time"
 
@@ -125,17 +126,43 @@ func (exc *CExecutor) RunAgainstTestcase(input, expectedOutput string) (models.V
 	return verdict, stdoutBuf.String(), stderrBuf.String(), nil
 }
 
-// func (exc *CExecutor) GradeAll() error {
-// 	result := make(chan models.Verdict)
-// 	lenOfTC := len(exc.InputFiles)
+func (exc *CExecutor) GradeAll() []models.Verdict {
+	type GradingVerdict struct {
+		models.Verdict
+		int
+	}
 
-// 	for range lenOfTC {
-// 		go func() {
+	result := make(chan GradingVerdict)
 
-// 		}()
-// 	}
+	lenOfTC := len(exc.InputFiles)
 
-// }
+	for i := range lenOfTC {
+		go func() {
+			// TODO: i should really handle all these errors :D
+
+			input, expectedOutput, _ := exc.ReadInputOutputFile(i)
+			verdict, _, _, _ := exc.RunAgainstTestcase(input, expectedOutput)
+			result <- GradingVerdict{verdict, i}
+		}()
+	}
+
+	verdicts := []GradingVerdict{}
+	for range lenOfTC {
+		v := <-result
+		verdicts = append(verdicts, v)
+	}
+
+	sort.Slice(verdicts, func(i, j int) bool {
+		return verdicts[i].int < verdicts[j].int
+	})
+
+	verdictOnly := []models.Verdict{}
+	for _, v := range verdicts {
+		verdictOnly = append(verdictOnly, v.Verdict)
+	}
+
+	return verdictOnly
+}
 
 func (exc *CExecutor) ScriptArgs() []string {
 	return append(exc.BuildFiles, []string{"-o", exc.BinaryExecutable}...)
