@@ -62,6 +62,25 @@ func TestCreateNewExecutor(t *testing.T) {
 	})
 }
 
+func TestExecute(t *testing.T) {
+	executor, err := language.CreateNewCExecutor(
+		os.DirFS("."),
+		"tests/c/multiple",
+		[]string{"array.c", "ganjilgenap.c"},
+		[]string{"1.in", "2.in", "3.in", "4.in", "5.in", "6.in", "7.in", "8.in", "9.in", "10.in"},
+		[]string{"1.out", "2.out", "3.out", "4.out", "5.out", "6.out", "7.out", "8.out", "9.out", "10.out"},
+	)
+
+	if err != nil {
+		t.Fatalf("got an error when expecting none: %q", err)
+	}
+
+	got, _ := executor.Execute()
+	want := []models.Verdict{models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC}
+
+	utils.AssertDeep(t, got, want)
+}
+
 func TestScriptArgs(t *testing.T) {
 	t.Run("it should return script args without supplied flags", func(t *testing.T) {
 		executor := language.CExecutor{
@@ -269,9 +288,10 @@ func TestGradeAll(t *testing.T) {
 			BinaryExecutable: "ganjilgenap",
 		}
 
-		verdicts := excecutor.GradeAll()
+		got := excecutor.GradeAll()
+		want := []models.Verdict{models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC, models.VerdictAC}
 
-		fmt.Println(verdicts)
+		utils.AssertDeep(t, got, want)
 	})
 }
 

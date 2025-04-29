@@ -18,7 +18,7 @@ import (
 type CExecutor struct {
 	Workdir     string
 	BuildFiles  []string
-	InputFiles  []string
+	InputFiles  []string // TODO: probably change this to just plain input / output instead of files
 	OutputFiles []string
 
 	BinaryExecutable string
@@ -56,8 +56,14 @@ func CreateNewCExecutor(fsys fs.FS, workdir string, buildFiles []string, inputFi
 	}, nil
 }
 
-func (exc *CExecutor) Execute() error {
-	return nil
+func (exc *CExecutor) Execute() ([]models.Verdict, error) {
+	_, stderr, _ := exc.Compile()
+	if stderr != "" {
+		return []models.Verdict{models.VerdictCE}, nil
+	}
+
+	verdicts := exc.GradeAll()
+	return verdicts, nil
 }
 
 func (exc *CExecutor) Compile() (string, string, error) {
@@ -172,6 +178,7 @@ func (exc *CExecutor) AddWorkdirPrefix(s string) string {
 	return exc.Workdir + "/" + s
 }
 
+// TODO: reading testcases file might probably be on another package
 func (exc *CExecutor) ReadInputOutputFile(idx int) (string, string, error) {
 	var wg sync.WaitGroup
 
@@ -184,6 +191,7 @@ func (exc *CExecutor) ReadInputOutputFile(idx int) (string, string, error) {
 		go func(idx int, p string) {
 			defer wg.Done()
 
+			// TODO: should probably change this ioutil
 			data, err := ioutil.ReadFile(p)
 			if err != nil {
 				errors[idx] = err

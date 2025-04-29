@@ -2,9 +2,7 @@ package models
 
 type Submission struct {
 	Language   string
-	UseBuilder bool
-	Builder    string
-	Files      []string
+	BuildFiles []string
 	Testcases  []Testcase
 
 	Workdir             string
@@ -15,8 +13,6 @@ type Submission struct {
 }
 
 type Testcase struct {
-	InputFilename          string
-	ExpectedOutputFilename string
-	ActualOutputFilename   string
-	Verdict                string
+	InputFilename  string
+	OutputFilename string
 }
