@@ -58,6 +58,7 @@ func CreateNewCExecutor(fsys fs.FS, workdir string, buildFiles []string, inputFi
 
 func (exc *CExecutor) Execute() ([]models.Verdict, error) {
 	_, stderr, _ := exc.Compile()
+
 	if stderr != "" {
 		return []models.Verdict{models.VerdictCE}, nil
 	}
@@ -74,7 +75,7 @@ func (exc *CExecutor) Compile() (string, string, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "gcc", exc.ScriptArgs()...)
-	cmd.Dir = exc.Workdir
+	cmd.Dir = "/" + exc.Workdir
 
 	// attach stdout and stderr
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -82,6 +83,8 @@ func (exc *CExecutor) Compile() (string, string, error) {
 	cmd.Stderr = &stderrBuf
 
 	err := cmd.Run()
+
+	// log.Println(err)
 
 	if ctx.Err() == context.DeadlineExceeded {
 		return stdoutBuf.String(), stderrBuf.String(), ctx.Err()
@@ -99,12 +102,16 @@ func (exc *CExecutor) Run(stdin io.Reader, stdout, stderr io.Writer) error {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "./"+exc.BinaryExecutable)
-	cmd.Dir = exc.Workdir
+	cmd.Dir = "/" + exc.Workdir
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
 	err := cmd.Run()
+
+	// log.Println(exc.Workdir)
+	// log.Println(exc.BinaryExecutable)
+	// log.Println(err)
 
 	if ctx.Err() == context.DeadlineExceeded {
 		return ctx.Err()
@@ -118,6 +125,7 @@ func (exc *CExecutor) RunAgainstTestcase(input, expectedOutput string) (models.V
 	stdinBuf.Write([]byte(input))
 
 	if err := exc.Run(&stdinBuf, &stdoutBuf, &stderrBuf); err != nil {
+
 		if err == context.DeadlineExceeded {
 			return models.VerdictTLE, stdoutBuf.String(), stderrBuf.String(), err
 		}
@@ -148,6 +156,7 @@ func (exc *CExecutor) GradeAll() []models.Verdict {
 
 			input, expectedOutput, _ := exc.ReadInputOutputFile(i)
 			verdict, _, _, _ := exc.RunAgainstTestcase(input, expectedOutput)
+
 			result <- GradingVerdict{verdict, i}
 		}()
 	}
@@ -175,7 +184,7 @@ func (exc *CExecutor) ScriptArgs() []string {
 }
 
 func (exc *CExecutor) AddWorkdirPrefix(s string) string {
-	return exc.Workdir + "/" + s
+	return "/" + exc.Workdir + "/" + s
 }
 
 // TODO: reading testcases file might probably be on another package

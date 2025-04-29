@@ -1,18 +1,9 @@
 package models
 
 type Submission struct {
+	Id         string
 	Language   string
 	BuildFiles []string
-	Testcases  []Testcase
-
-	Workdir             string
-	HasCompletedGrading bool
-	TimeStarted         string
-	TimeCompleted       string
-	FinalScore          float32
-}
-
-type Testcase struct {
-	InputFilename  string
-	OutputFilename string
+	TCInputFiles []string
+	TCOutputFiles []string
 }
