@@ -75,7 +75,7 @@ func (exc *CExecutor) Compile() (string, string, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "gcc", exc.ScriptArgs()...)
-	cmd.Dir = "/" + exc.Workdir
+	cmd.Dir = exc.Workdir
 
 	// attach stdout and stderr
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -102,7 +102,7 @@ func (exc *CExecutor) Run(stdin io.Reader, stdout, stderr io.Writer) error {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "./"+exc.BinaryExecutable)
-	cmd.Dir = "/" + exc.Workdir
+	cmd.Dir = exc.Workdir
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
@@ -184,7 +184,7 @@ func (exc *CExecutor) ScriptArgs() []string {
 }
 
 func (exc *CExecutor) AddWorkdirPrefix(s string) string {
-	return "/" + exc.Workdir + "/" + s
+	return exc.Workdir + "/" + s
 }
 
 // TODO: reading testcases file might probably be on another package
