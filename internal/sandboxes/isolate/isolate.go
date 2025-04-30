@@ -46,7 +46,7 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error)
 }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
-	// err := utils.CopyFromFSToDirectory(s.Fsys, filepath, s.BoxDir)
+	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
 	return nil
 }
 
@@ -88,4 +88,9 @@ func (s *IsolateSandbox) cleanUpIsolate() error {
 	} else {
 		return err
 	}
+}
+
+func parseFilenameFromPath(filepath string) string {
+	splitted := strings.Split(filepath, "/")
+	return splitted[len(splitted)-1]
 }
