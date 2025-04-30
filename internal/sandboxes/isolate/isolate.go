@@ -1,0 +1,91 @@
+package isolate
+
+import (
+	"errors"
+	"os/exec"
+	"strconv"
+	"strings"
+)
+
+type IsolateSandbox struct {
+	IsolatePath string
+	BoxId       int
+	AllowedDirs []string
+	Filenames   []string
+
+	BoxDir  string
+	Command []string
+
+	StandardInput  []byte
+	StandardOutput []byte
+	StandardError  []byte
+
+	TimeLimit     int
+	WallTimeLimit int
+	MemoryLimit   int
+	FileSizeLimit int
+	MaxProcesses  int
+}
+
+func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error) {
+	isolate := IsolateSandbox{
+		IsolatePath:   isolatePath,
+		BoxId:         boxId,
+		AllowedDirs:   []string{},
+		Filenames:     []string{},
+		FileSizeLimit: 100 * 1024, // defaults to 100KB
+		MaxProcesses:  50,         // defaults to 50 processes
+	}
+
+	err := isolate.initSandbox()
+	if err != nil {
+		return IsolateSandbox{}, err
+	}
+
+	return isolate, nil
+}
+
+func (s *IsolateSandbox) AddFile(filepath string) error {
+	// err := utils.CopyFromFSToDirectory(s.Fsys, filepath, s.BoxDir)
+	return nil
+}
+
+func (s *IsolateSandbox) Cleanup() error {
+	err := s.cleanUpIsolate()
+	return err
+}
+
+func (s *IsolateSandbox) initSandbox() error {
+	commandArgs := []string{"-b", strconv.Itoa(s.BoxId), "--cg", "--init"}
+
+	cmd := exec.Command(s.IsolatePath, commandArgs...)
+	stdout, err := cmd.CombinedOutput()
+
+	if err == nil && cmd.ProcessState.ExitCode() == 0 {
+		s.BoxDir = strings.Trim(string(stdout), "\n")
+		return nil
+	}
+
+	if strings.Contains(err.Error(), "Box already exists") {
+		s.cleanUpIsolate()
+	}
+
+	if string(stdout) != "" {
+		err = errors.New(string(stdout))
+	}
+
+	return err
+}
+
+func (s *IsolateSandbox) cleanUpIsolate() error {
+	commandArgs := []string{"-b", strconv.Itoa(s.BoxId), "--cg", "--cleanup"}
+
+	cmd := exec.Command(s.IsolatePath, commandArgs...)
+	stdout, err := cmd.CombinedOutput()
+
+	if err != nil || cmd.ProcessState.ExitCode() != 0 {
+		return errors.New("Cannot clean up Isolate! " + string(stdout))
+	} else {
+		return err
+	}
+}
