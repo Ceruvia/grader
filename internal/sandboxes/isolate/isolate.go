@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"slices"
@@ -64,6 +65,19 @@ func (s *IsolateSandbox) ContainsFile(filename string) bool {
 	return slices.Contains(s.Filenames, filename)
 }
 
+func (s *IsolateSandbox) GetFile(filename string) (fs.File, error) {
+	// TODO: maybe custom error when file is not in s.Filenames
+	// TODO: maybe balikin []byte aja ketimbang fs.File
+
+	file, err := os.Open(appendBoxdir(s.BoxDir, filename))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
 func (s *IsolateSandbox) Cleanup() error {
 	err := s.cleanUpIsolate()
 	return err
@@ -107,6 +121,10 @@ func (s *IsolateSandbox) cleanUpIsolate() error {
 func parseFilenameFromPath(filepath string) string {
 	splitted := strings.Split(filepath, "/")
 	return splitted[len(splitted)-1]
+}
+
+func appendBoxdir(boxdir, filename string) string {
+	return boxdir + "/" + filename
 }
 
 func copy(src, dst string) (int64, error) {

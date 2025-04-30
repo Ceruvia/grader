@@ -80,7 +80,7 @@ func TestAddFile(t *testing.T) {
 		err := sbx.AddFile("tests/fake/source/gaada.c")
 
 		if err == nil {
-			t.Fatalf("didn't get an error when expecting")
+			t.Fatalf("didn't get an error when expecting: %q", err)
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
@@ -105,5 +105,40 @@ func TestContainsFile(t *testing.T) {
 		want := false
 
 		utils.AssertDeep(t, got, want)
+	})
+}
+
+func TestGetFile(t *testing.T) {
+	sbx := isolate.IsolateSandbox{
+		BoxDir:    "tests/fake/source",
+		Filenames: []string{"file.c"},
+	}
+
+	t.Run("it should be able to get a file", func(t *testing.T) {
+		file, err := sbx.GetFile("file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+
+		data := make([]byte, 4)
+		file.Read(data)
+
+		got := string(data)
+		want := "smth"
+
+		utils.AssertDeep(t, got, want)
+	})
+
+	t.Run("it should return error when not in sbx.Filenames", func(t *testing.T) {
+		_, err := sbx.GetFile("nada.c")
+
+		if err == nil {
+			t.Fatalf("didn't get an error when expecting: %q", err)
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf(`should've gotten "no such file or directory", instead got %q`, err)
+		}
 	})
 }
