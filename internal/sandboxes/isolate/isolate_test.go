@@ -1,6 +1,8 @@
 package isolate_test
 
 import (
+	"errors"
+	"os"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
@@ -37,11 +39,52 @@ func TestAddFile(t *testing.T) {
 			BoxDir:    "tests/fake/destination",
 		}
 
-		sbx.AddFile("tests/fake/source/file.c")
+		err := sbx.AddFile("tests/fake/source/file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
 
 		got := sbx.Filenames
 		want := []string{"file.c"}
 
 		utils.AssertDeep(t, got, want)
+	})
+
+	t.Run("it should copy the file to sbx.Boxdir", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{
+			Filenames: []string{},
+			BoxDir:    "tests/fake/destination",
+		}
+
+		err := sbx.AddFile("tests/fake/source/file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+
+		if _, err := os.Stat("tests/fake/destination/file.c"); err != nil {
+			t.Errorf("file was not moved to Boxdir: %q", err)
+		}
+
+		// cleanup
+		os.Remove("tests/fake/destination/file.c")
+	})
+
+	t.Run("it should return error when file doesn't exist", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{
+			Filenames: []string{},
+			BoxDir:    "tests/fake/destination",
+		}
+
+		err := sbx.AddFile("tests/fake/source/gaada.c")
+
+		if err == nil {
+			t.Fatalf("didn't get an error when expecting")
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf(`should've gotten "no such file or directory", instead got %q`, err)
+		}
 	})
 }

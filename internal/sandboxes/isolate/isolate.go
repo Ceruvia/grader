@@ -2,6 +2,9 @@ package isolate
 
 import (
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -46,6 +49,12 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error)
 }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
+	_, err := copy(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))
+
+	if err != nil {
+		return err
+	}
+
 	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
 	return nil
 }
@@ -93,4 +102,29 @@ func (s *IsolateSandbox) cleanUpIsolate() error {
 func parseFilenameFromPath(filepath string) string {
 	splitted := strings.Split(filepath, "/")
 	return splitted[len(splitted)-1]
+}
+
+func copy(src, dst string) (int64, error) {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return 0, err
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return 0, fmt.Errorf("%s is not a regular file", src)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return 0, err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return 0, err
+	}
+	defer destination.Close()
+	nBytes, err := io.Copy(destination, source)
+	return nBytes, err
 }
