@@ -142,3 +142,30 @@ func TestGetFile(t *testing.T) {
 		}
 	})
 }
+
+func TestAddAllowedDirectory(t *testing.T) {
+	sbx := isolate.IsolateSandbox{
+		Filenames:   []string{},
+		AllowedDirs: []string{},
+	}
+
+	t.Run("it should add an existing directory", func(t *testing.T) {
+		err := sbx.AddAllowedDirectory("/etc")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+	})
+
+	t.Run("it should error when directory doesn't exist", func(t *testing.T) {
+		err := sbx.AddAllowedDirectory("/apalahgaada")
+
+		if err == nil {
+			t.Fatalf("didn't get an error when expecting: %q", err)
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf(`should've gotten "no such file or directory", instead got %q`, err)
+		}
+	})
+}

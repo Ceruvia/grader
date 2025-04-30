@@ -78,7 +78,15 @@ func (s *IsolateSandbox) GetFile(filename string) (fs.File, error) {
 	return file, nil
 }
 
+func (s *IsolateSandbox) AddAllowedDirectory(dirpath string) error {
+	if _, err := os.Stat(dirpath); err != nil {
+		return err
+	}
 
+	s.AllowedDirs = append(s.AllowedDirs, dirpath)
+
+	return nil
+}
 
 func (s *IsolateSandbox) Cleanup() error {
 	err := s.cleanUpIsolate()
