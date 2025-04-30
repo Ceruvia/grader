@@ -88,3 +88,22 @@ func TestAddFile(t *testing.T) {
 		}
 	})
 }
+
+func TestContainsFile(t *testing.T) {
+	sbx := isolate.IsolateSandbox{
+		Filenames: []string{"iexists.c"},
+	}
+	t.Run("it should return True when file is in sbx.Filenames", func(t *testing.T) {
+		got := sbx.ContainsFile("iexists.c")
+		want := true
+
+		utils.AssertDeep(t, got, want)
+	})
+
+	t.Run("it should return False when file doesn't exists in sbx.Filenames", func(t *testing.T) {
+		got := sbx.ContainsFile("idontexists.c")
+		want := false
+
+		utils.AssertDeep(t, got, want)
+	})
+}

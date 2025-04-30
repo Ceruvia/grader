@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -57,6 +58,10 @@ func (s *IsolateSandbox) AddFile(filepath string) error {
 
 	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
 	return nil
+}
+
+func (s *IsolateSandbox) ContainsFile(filename string) bool {
+	return slices.Contains(s.Filenames, filename)
 }
 
 func (s *IsolateSandbox) Cleanup() error {
