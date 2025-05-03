@@ -2,9 +2,11 @@ package isolate_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
+	"github.com/Ceruvia/grader/internal/command"
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
 	"github.com/Ceruvia/grader/internal/utils"
 )
@@ -277,4 +279,98 @@ func TestSetters(t *testing.T) {
 
 		utils.AssertDeep(t, sbx, want)
 	})
+}
+
+func TestBuildCommand(t *testing.T) {
+	DummyRunCommand := command.GetCommandBuilder("gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello")
+
+	BuildTests := []struct {
+		Title           string
+		Sandbox         isolate.IsolateSandbox
+		ExpectedCommand string
+	}{
+		{
+			Title: "Basic",
+			Sandbox: isolate.IsolateSandbox{
+				IsolatePath:   "isolate",
+				BoxId:         990,
+				AllowedDirs:   []string{},
+				Filenames:     []string{},
+				FileSizeLimit: 100 * 1024,
+				MaxProcesses:  50,
+			},
+			ExpectedCommand: "isolate -b 990 -e --cg --cg-timing -p50 -f102400 --run -- gcc hello.c -o hello",
+		},
+		{
+			Title: "Limits",
+			Sandbox: isolate.IsolateSandbox{
+				IsolatePath:   "isolate",
+				BoxId:         990,
+				AllowedDirs:   []string{},
+				Filenames:     []string{},
+				FileSizeLimit: 100 * 1024,
+				MaxProcesses:  50,
+				TimeLimit:     10000,
+				WallTimeLimit: 10000,
+				MemoryLimit:   10240,
+			},
+			ExpectedCommand: "isolate -b 990 -e --cg --cg-timing -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
+		},
+		{
+			Title: "Allowed Dir",
+			Sandbox: isolate.IsolateSandbox{
+				IsolatePath:   "isolate",
+				BoxId:         990,
+				AllowedDirs:   []string{"/usr/bin", "/var"},
+				Filenames:     []string{},
+				FileSizeLimit: 100 * 1024,
+				MaxProcesses:  50,
+			},
+			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg --cg-timing -p50 -f102400 --run -- gcc hello.c -o hello",
+		},
+		{
+			Title: "Redirections",
+			Sandbox: isolate.IsolateSandbox{
+				IsolatePath:            "isolate",
+				BoxId:                  990,
+				AllowedDirs:            []string{},
+				Filenames:              []string{},
+				FileSizeLimit:          100 * 1024,
+				MaxProcesses:           50,
+				StandardInputFilename:  "1.in",
+				StandardOutputFilename: "1.out.expected",
+				StandardErrorFilename:  "1.out.error",
+				MetaFilename:           "1.out.meta",
+			},
+			ExpectedCommand: "isolate -b 990 -e --cg --cg-timing -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+		},
+		{
+			Title: "All",
+			Sandbox: isolate.IsolateSandbox{
+				IsolatePath:            "isolate",
+				BoxId:                  990,
+				AllowedDirs:            []string{"/usr/bin", "/var"},
+				Filenames:              []string{},
+				FileSizeLimit:          100 * 1024,
+				MaxProcesses:           50,
+				TimeLimit:              10000,
+				WallTimeLimit:          10000,
+				MemoryLimit:            10240,
+				StandardInputFilename:  "1.in",
+				StandardOutputFilename: "1.out.expected",
+				StandardErrorFilename:  "1.out.error",
+				MetaFilename:           "1.out.meta",
+			},
+			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg --cg-timing -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+		},
+	}
+
+	for _, test := range BuildTests {
+		t.Run(fmt.Sprintf("it should be able to create build command for sandbox with %s configuration", test.Title), func(t *testing.T) {
+			got := test.Sandbox.BuildCommand(*DummyRunCommand)
+			if got.BuildFullCommand() != test.ExpectedCommand {
+				t.Errorf("got %q, expected %q", got.BuildFullCommand(), test.ExpectedCommand)
+			}
+		})
+	}
 }
