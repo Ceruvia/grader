@@ -142,6 +142,69 @@ func (s *IsolateSandbox) RedirectStandardError(filenameInsideBox string) error {
 	return nil
 }
 
+func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder) *command.CommandBuilder {
+	sandboxedCommand := command.GetCommandBuilder(s.IsolatePath)
+	sandboxedCommand.AddArgs("-b " + strconv.Itoa(s.BoxId))
+
+	for _, dir := range s.AllowedDirs {
+		sandboxedCommand.AddArgs(fmt.Sprintf("--dir=%s:rw", dir))
+	}
+
+	sandboxedCommand.AddArgs("-e")
+
+	if s.MaxProcesses > 0 {
+		sandboxedCommand.AddArgs("--cg").AddArgs("--cg-timing").AddArgs(fmt.Sprintf("-p%d", s.MaxProcesses))
+	}
+
+	if s.TimeLimit > 0 {
+		timeLimitInSeconds := float64(s.TimeLimit) / 1000
+		sandboxedCommand.AddArgs(fmt.Sprintf("-t%g", timeLimitInSeconds))
+		sandboxedCommand.AddArgs("-x0.5")
+	}
+
+	if s.WallTimeLimit > 0 {
+		timeLimitInSeconds := float64(s.WallTimeLimit) / 1000
+		sandboxedCommand.AddArgs(fmt.Sprintf("-w%g", timeLimitInSeconds))
+	}
+
+	if s.MemoryLimit > 0 {
+		if s.MaxProcesses > 1 {
+			sandboxedCommand.AddArgs(fmt.Sprintf("--cg-mem=%d", s.MemoryLimit))
+		} else {
+			sandboxedCommand.AddArgs(fmt.Sprintf("-m%d", s.MemoryLimit))
+		}
+		sandboxedCommand.AddArgs(fmt.Sprintf("-k%d", s.MemoryLimit))
+	}
+
+	if s.FileSizeLimit > 0 {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-f%d", s.FileSizeLimit))
+	}
+
+	if s.StandardInputFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-i%s", s.StandardInputFilename))
+	}
+
+	if s.StandardOutputFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-o%s", s.StandardOutputFilename))
+	}
+
+	if s.StandardErrorFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-r%s", s.StandardErrorFilename))
+	}
+
+	if s.MetaFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-M%s", s.MetaFilename))
+	}
+
+	sandboxedCommand.AddArgs("--run").AddArgs("--")
+
+	sandboxedCommand.AddArgs(runCommand.Program).AddArgs(runCommand.Args...)
+
+	return sandboxedCommand
+}
+
+func (s *IsolateSandbox) ExecuteWithRedirections(command command.CommandBuilder) {}
+
 func (s *IsolateSandbox) Cleanup() error {
 	err := s.cleanUpIsolate()
 	return err
