@@ -26,6 +26,7 @@ type IsolateSandbox struct {
 	StandardInputFilename  string
 	StandardOutputFilename string
 	StandardErrorFilename  string
+	MetaFilename           string
 
 	TimeLimit     int
 	WallTimeLimit int
@@ -106,6 +107,15 @@ func (s *IsolateSandbox) ResetRedirection() {
 	s.StandardInputFilename = ""
 	s.StandardOutputFilename = ""
 	s.StandardErrorFilename = ""
+	s.MetaFilename = ""
+}
+
+func (s *IsolateSandbox) RedirectMeta(filenameInsideBox string) error {
+	if _, err := os.Stat(filenameInsideBox); err != nil {
+		return err
+	}
+	s.MetaFilename = filenameInsideBox
+	return nil
 }
 
 func (s *IsolateSandbox) RedirectStandardInput(filenameInsideBox string) error {

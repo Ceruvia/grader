@@ -204,6 +204,21 @@ func TestSetters(t *testing.T) {
 		utils.AssertDeep(t, sbx, want)
 	})
 
+	t.Run("it should be able to set meta file", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		err := sbx.RedirectMeta("tests/fake/source/file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+
+		want := isolate.IsolateSandbox{
+			MetaFilename: "tests/fake/source/file.c",
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
 	t.Run("it should be able to set standard input file", func(t *testing.T) {
 		sbx := isolate.IsolateSandbox{}
 		err := sbx.RedirectStandardInput("tests/fake/source/file.c")
