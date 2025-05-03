@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/Ceruvia/grader/internal/command"
 )
 
 type IsolateSandbox struct {
@@ -136,9 +138,12 @@ func (s *IsolateSandbox) Cleanup() error {
 }
 
 func (s *IsolateSandbox) initSandbox() error {
-	commandArgs := []string{"-b", strconv.Itoa(s.BoxId), "--cg", "--init"}
+	command := command.GetCommandBuilder(s.IsolatePath)
+	command.AddArgs("-b " + strconv.Itoa(s.BoxId))
+	command.AddArgs("--cg")
+	command.AddArgs("--init")
 
-	cmd := exec.Command(s.IsolatePath, commandArgs...)
+	cmd := exec.Command(command.Program, command.Args...)
 	stdout, err := cmd.CombinedOutput()
 
 	if err == nil && cmd.ProcessState.ExitCode() == 0 {
