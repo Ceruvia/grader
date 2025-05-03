@@ -169,3 +169,97 @@ func TestAddAllowedDirectory(t *testing.T) {
 		}
 	})
 }
+
+func TestSetters(t *testing.T) {
+	t.Run("it should be able to set time limit", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		sbx.SetTimeLimitInMiliseconds(1000)
+
+		want := isolate.IsolateSandbox{
+			TimeLimit: 1000,
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
+	t.Run("it should be able to set wall time limit", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		sbx.SetWallTimeLimitInMiliseconds(1000)
+
+		want := isolate.IsolateSandbox{
+			WallTimeLimit: 1000,
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
+	t.Run("it should be able to set memory limit", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		sbx.SetMemoryLimitInKilobytes(1024000)
+
+		want := isolate.IsolateSandbox{
+			MemoryLimit: 1024000,
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
+	t.Run("it should be able to set standard input file", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		err := sbx.RedirectStandardInput("tests/fake/source/file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+
+		want := isolate.IsolateSandbox{
+			StandardInputFilename: "tests/fake/source/file.c",
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
+	t.Run("it should be able to set standard output file", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		err := sbx.RedirectStandardOutput("tests/fake/source/file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+
+		want := isolate.IsolateSandbox{
+			StandardOutputFilename: "tests/fake/source/file.c",
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
+	t.Run("it should be able to set standard error file", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{}
+		err := sbx.RedirectStandardError("tests/fake/source/file.c")
+
+		if err != nil {
+			t.Fatalf("got an error when expecting none: %q", err)
+		}
+
+		want := isolate.IsolateSandbox{
+			StandardErrorFilename: "tests/fake/source/file.c",
+		}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+
+	t.Run("it should be able to reset all redirections", func(t *testing.T) {
+		sbx := isolate.IsolateSandbox{
+			StandardInputFilename:  "1.in",
+			StandardOutputFilename: "1.out.expected",
+			StandardErrorFilename:  "1.err",
+		}
+
+		sbx.ResetRedirection()
+
+		want := isolate.IsolateSandbox{}
+
+		utils.AssertDeep(t, sbx, want)
+	})
+}

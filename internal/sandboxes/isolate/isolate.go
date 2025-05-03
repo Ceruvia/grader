@@ -21,9 +21,9 @@ type IsolateSandbox struct {
 	BoxDir  string
 	Command []string
 
-	StandardInput  []byte
-	StandardOutput []byte
-	StandardError  []byte
+	StandardInputFilename  string
+	StandardOutputFilename string
+	StandardErrorFilename  string
 
 	TimeLimit     int
 	WallTimeLimit int
@@ -85,6 +85,48 @@ func (s *IsolateSandbox) AddAllowedDirectory(dirpath string) error {
 
 	s.AllowedDirs = append(s.AllowedDirs, dirpath)
 
+	return nil
+}
+
+func (s *IsolateSandbox) SetTimeLimitInMiliseconds(timeInMiliseconds int) {
+	s.TimeLimit = timeInMiliseconds
+}
+
+func (s *IsolateSandbox) SetWallTimeLimitInMiliseconds(timeInMiliseconds int) {
+	s.WallTimeLimit = timeInMiliseconds
+}
+
+func (s *IsolateSandbox) SetMemoryLimitInKilobytes(memoryInKilobytes int) {
+	s.MemoryLimit = memoryInKilobytes
+}
+
+func (s *IsolateSandbox) ResetRedirection() {
+	s.StandardInputFilename = ""
+	s.StandardOutputFilename = ""
+	s.StandardErrorFilename = ""
+}
+
+func (s *IsolateSandbox) RedirectStandardInput(filenameInsideBox string) error {
+	if _, err := os.Stat(filenameInsideBox); err != nil {
+		return err
+	}
+	s.StandardInputFilename = filenameInsideBox
+	return nil
+}
+
+func (s *IsolateSandbox) RedirectStandardOutput(filenameInsideBox string) error {
+	if _, err := os.Stat(filenameInsideBox); err != nil {
+		return err
+	}
+	s.StandardOutputFilename = filenameInsideBox
+	return nil
+}
+
+func (s *IsolateSandbox) RedirectStandardError(filenameInsideBox string) error {
+	if _, err := os.Stat(filenameInsideBox); err != nil {
+		return err
+	}
+	s.StandardErrorFilename = filenameInsideBox
 	return nil
 }
 
