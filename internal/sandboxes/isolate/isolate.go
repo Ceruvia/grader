@@ -103,46 +103,12 @@ func (s *IsolateSandbox) SetMemoryLimitInKilobytes(memoryInKilobytes int) {
 	s.MemoryLimit = memoryInKilobytes
 }
 
-func (s *IsolateSandbox) ResetRedirection() {
-	s.StandardInputFilename = ""
-	s.StandardOutputFilename = ""
-	s.StandardErrorFilename = ""
-	s.MetaFilename = ""
-}
-
-func (s *IsolateSandbox) RedirectMeta(filenameInsideBox string) error {
-	if _, err := os.Stat(filenameInsideBox); err != nil {
-		return err
-	}
-	s.MetaFilename = filenameInsideBox
-	return nil
-}
-
-func (s *IsolateSandbox) RedirectStandardInput(filenameInsideBox string) error {
-	if _, err := os.Stat(filenameInsideBox); err != nil {
-		return err
-	}
-	s.StandardInputFilename = filenameInsideBox
-	return nil
-}
-
-func (s *IsolateSandbox) RedirectStandardOutput(filenameInsideBox string) error {
-	if _, err := os.Stat(filenameInsideBox); err != nil {
-		return err
-	}
-	s.StandardOutputFilename = filenameInsideBox
-	return nil
-}
-
-func (s *IsolateSandbox) RedirectStandardError(filenameInsideBox string) error {
-	if _, err := os.Stat(filenameInsideBox); err != nil {
-		return err
-	}
-	s.StandardErrorFilename = filenameInsideBox
-	return nil
-}
-
 func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder) *command.CommandBuilder {
+	return s.BuildCommandWithRedirections(runCommand, s.StandardInputFilename, s.StandardOutputFilename, s.StandardErrorFilename, s.MetaFilename)
+}
+
+// TODO; if useSavedRedirection then used the s.Redirections, else check if file exist or not
+func (s *IsolateSandbox) BuildCommandWithRedirections(runCommand command.CommandBuilder, stdinFilepath, stdoutFilepath, stderrFilepath, metaFilepath string) *command.CommandBuilder {
 	sandboxedCommand := command.GetCommandBuilder(s.IsolatePath)
 	sandboxedCommand.AddArgs("-b " + strconv.Itoa(s.BoxId))
 
@@ -180,20 +146,20 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder) *comman
 		sandboxedCommand.AddArgs(fmt.Sprintf("-f%d", s.FileSizeLimit))
 	}
 
-	if s.StandardInputFilename != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-i%s", s.StandardInputFilename))
+	if stdinFilepath != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-i%s", stdinFilepath))
 	}
 
-	if s.StandardOutputFilename != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-o%s", s.StandardOutputFilename))
+	if stdoutFilepath != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-o%s", stdoutFilepath))
 	}
 
-	if s.StandardErrorFilename != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-r%s", s.StandardErrorFilename))
+	if stderrFilepath != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-r%s", stderrFilepath))
 	}
 
-	if s.MetaFilename != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-M%s", s.MetaFilename))
+	if metaFilepath != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-M%s", metaFilepath))
 	}
 
 	sandboxedCommand.AddArgs("--run").AddArgs("--")
@@ -203,7 +169,11 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder) *comman
 	return sandboxedCommand
 }
 
-func (s *IsolateSandbox) ExecuteWithRedirections(command command.CommandBuilder) {}
+func (s *IsolateSandbox) Execute(command command.CommandBuilder) {
+}
+
+func (s *IsolateSandbox) ExecuteWithRedirections(command command.CommandBuilder, stdinFilepath, stdoutFilepath, stderrFilepath, metaFilepath string) {
+}
 
 func (s *IsolateSandbox) Cleanup() error {
 	err := s.cleanUpIsolate()
