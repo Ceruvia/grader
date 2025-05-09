@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Ceruvia/grader/internal/command"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 type IsolateSandbox struct {
@@ -22,11 +23,6 @@ type IsolateSandbox struct {
 
 	BoxDir  string
 	Command []string
-
-	StandardInputFilename  string
-	StandardOutputFilename string
-	StandardErrorFilename  string
-	MetaFilename           string
 
 	TimeLimit     int
 	WallTimeLimit int
@@ -103,12 +99,7 @@ func (s *IsolateSandbox) SetMemoryLimitInKilobytes(memoryInKilobytes int) {
 	s.MemoryLimit = memoryInKilobytes
 }
 
-func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder) *command.CommandBuilder {
-	return s.BuildCommandWithRedirections(runCommand, s.StandardInputFilename, s.StandardOutputFilename, s.StandardErrorFilename, s.MetaFilename)
-}
-
-// TODO; if useSavedRedirection then used the s.Redirections, else check if file exist or not
-func (s *IsolateSandbox) BuildCommandWithRedirections(runCommand command.CommandBuilder, stdinFilepath, stdoutFilepath, stderrFilepath, metaFilepath string) *command.CommandBuilder {
+func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) *command.CommandBuilder {
 	sandboxedCommand := command.GetCommandBuilder(s.IsolatePath)
 	sandboxedCommand.AddArgs("-b " + strconv.Itoa(s.BoxId))
 
@@ -146,20 +137,20 @@ func (s *IsolateSandbox) BuildCommandWithRedirections(runCommand command.Command
 		sandboxedCommand.AddArgs(fmt.Sprintf("-f%d", s.FileSizeLimit))
 	}
 
-	if stdinFilepath != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-i%s", stdinFilepath))
+	if redirectionFiles.StandardInputFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-i%s", redirectionFiles.StandardInputFilename))
 	}
 
-	if stdoutFilepath != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-o%s", stdoutFilepath))
+	if redirectionFiles.StandardOutputFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-o%s", redirectionFiles.StandardOutputFilename))
 	}
 
-	if stderrFilepath != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-r%s", stderrFilepath))
+	if redirectionFiles.StandardErrorFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-r%s", redirectionFiles.StandardErrorFilename))
 	}
 
-	if metaFilepath != "" {
-		sandboxedCommand.AddArgs(fmt.Sprintf("-M%s", metaFilepath))
+	if redirectionFiles.MetaFilename != "" {
+		sandboxedCommand.AddArgs(fmt.Sprintf("-M%s", redirectionFiles.MetaFilename))
 	}
 
 	sandboxedCommand.AddArgs("--run").AddArgs("--")
