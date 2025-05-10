@@ -54,3 +54,39 @@ func (r *RedirectionFiles) RedirectStandardError(filenameInsideBox string) error
 	r.StandardErrorFilename = filenameInsideBox
 	return nil
 }
+
+func (r *RedirectionFiles) CreateNewMetaFileAndRedirect(filenameInsideBox string) error {
+	_, err := os.OpenFile(r.Boxdir+"/"+filenameInsideBox, os.O_RDONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	r.MetaFilename = r.Boxdir + "/" + filenameInsideBox
+	return nil
+}
+
+func (r *RedirectionFiles) CreateNewStandardInputFileAndRedirect(filenameInsideBox string) error {
+	_, err := os.OpenFile(r.Boxdir+"/"+filenameInsideBox, os.O_RDONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	r.StandardInputFilename = filenameInsideBox
+	return nil
+}
+
+func (r *RedirectionFiles) CreateNewStandardOutputFileAndRedirect(filenameInsideBox string) error {
+	_, err := os.OpenFile(r.Boxdir+"/"+filenameInsideBox, os.O_RDONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	r.StandardOutputFilename = filenameInsideBox
+	return nil
+}
+
+func (r *RedirectionFiles) CreateNewStandardErrorFileAndRedirect(filenameInsideBox string) error {
+	_, err := os.OpenFile(r.Boxdir+"/"+filenameInsideBox, os.O_RDONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	r.StandardErrorFilename = filenameInsideBox
+	return nil
+}
