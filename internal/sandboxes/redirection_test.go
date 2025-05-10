@@ -9,14 +9,17 @@ import (
 
 func TestSetters(t *testing.T) {
 	t.Run("it should be able to set meta file", func(t *testing.T) {
-		red := sandboxes.RedirectionFiles{}
-		err := red.RedirectMeta("isolate/tests/fake/source", "file.c")
+		red := sandboxes.RedirectionFiles{
+			Boxdir: "isolate/tests/fake/source",
+		}
+		err := red.RedirectMeta("file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
 
 		want := sandboxes.RedirectionFiles{
+			Boxdir:       "isolate/tests/fake/source",
 			MetaFilename: "isolate/tests/fake/source/file.c",
 		}
 
@@ -24,14 +27,17 @@ func TestSetters(t *testing.T) {
 	})
 
 	t.Run("it should be able to set standard input file", func(t *testing.T) {
-		red := sandboxes.RedirectionFiles{}
-		err := red.RedirectStandardInput("isolate/tests/fake/source", "file.c")
+		red := sandboxes.RedirectionFiles{
+			Boxdir: "isolate/tests/fake/source",
+		}
+		err := red.RedirectStandardInput("file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
 
 		want := sandboxes.RedirectionFiles{
+			Boxdir:                "isolate/tests/fake/source",
 			StandardInputFilename: "file.c",
 		}
 
@@ -39,14 +45,17 @@ func TestSetters(t *testing.T) {
 	})
 
 	t.Run("it should be able to set standard output file", func(t *testing.T) {
-		red := sandboxes.RedirectionFiles{}
-		err := red.RedirectStandardOutput("isolate/tests/fake/source", "file.c")
+		red := sandboxes.RedirectionFiles{
+			Boxdir: "isolate/tests/fake/source",
+		}
+		err := red.RedirectStandardOutput("file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
 
 		want := sandboxes.RedirectionFiles{
+			Boxdir:                 "isolate/tests/fake/source",
 			StandardOutputFilename: "file.c",
 		}
 
@@ -54,14 +63,17 @@ func TestSetters(t *testing.T) {
 	})
 
 	t.Run("it should be able to set standard error file", func(t *testing.T) {
-		red := sandboxes.RedirectionFiles{}
-		err := red.RedirectStandardError("isolate/tests/fake/source", "file.c")
+		red := sandboxes.RedirectionFiles{
+			Boxdir: "isolate/tests/fake/source",
+		}
+		err := red.RedirectStandardError("file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
 
 		want := sandboxes.RedirectionFiles{
+			Boxdir:                "isolate/tests/fake/source",
 			StandardErrorFilename: "file.c",
 		}
 

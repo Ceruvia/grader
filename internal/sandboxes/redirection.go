@@ -3,14 +3,17 @@ package sandboxes
 import "os"
 
 type RedirectionFiles struct {
+	Boxdir                 string
 	StandardInputFilename  string
 	StandardOutputFilename string
 	StandardErrorFilename  string
 	MetaFilename           string
 }
 
-func CreateRedirectionFiles() RedirectionFiles {
-	return RedirectionFiles{}
+func CreateRedirectionFiles(boxdir string) RedirectionFiles {
+	return RedirectionFiles{
+		Boxdir: boxdir,
+	}
 }
 
 func (r *RedirectionFiles) ResetRedirection() {
@@ -20,32 +23,32 @@ func (r *RedirectionFiles) ResetRedirection() {
 	r.MetaFilename = ""
 }
 
-func (r *RedirectionFiles) RedirectMeta(boxdir, filenameInsideBox string) error {
-	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
+func (r *RedirectionFiles) RedirectMeta(filenameInsideBox string) error {
+	if _, err := os.Stat(r.Boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
-	r.MetaFilename = boxdir + "/" + filenameInsideBox
+	r.MetaFilename = r.Boxdir + "/" + filenameInsideBox
 	return nil
 }
 
-func (r *RedirectionFiles) RedirectStandardInput(boxdir, filenameInsideBox string) error {
-	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
+func (r *RedirectionFiles) RedirectStandardInput(filenameInsideBox string) error {
+	if _, err := os.Stat(r.Boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
 	r.StandardInputFilename = filenameInsideBox
 	return nil
 }
 
-func (r *RedirectionFiles) RedirectStandardOutput(boxdir, filenameInsideBox string) error {
-	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
+func (r *RedirectionFiles) RedirectStandardOutput(filenameInsideBox string) error {
+	if _, err := os.Stat(r.Boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
 	r.StandardOutputFilename = filenameInsideBox
 	return nil
 }
 
-func (r *RedirectionFiles) RedirectStandardError(boxdir, filenameInsideBox string) error {
-	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
+func (r *RedirectionFiles) RedirectStandardError(filenameInsideBox string) error {
+	if _, err := os.Stat(r.Boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
 	r.StandardErrorFilename = filenameInsideBox
