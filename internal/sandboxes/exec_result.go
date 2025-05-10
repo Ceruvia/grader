@@ -8,13 +8,38 @@ import (
 )
 
 type SandboxExecutionResult struct {
-	Status     string
+	Status     SandboxExecutionStatus
 	ExitSignal int
+	ExitCode   int
 	Time       float64
 	WallTime   float64
 	Memory     int
 	Message    string
 	IsKilled   bool
+}
+
+type SandboxExecutionStatus int
+
+const (
+	ZERO_EXIT_CODE SandboxExecutionStatus = iota
+	NONZERO_EXIT_CODE
+	KILLED_ON_SIGNAL
+	TIMED_OUT
+	INTERNAL_ERROR
+	PARSING_META_ERROR
+)
+
+var sandboxExecutionStatusNames = map[SandboxExecutionStatus]string{
+	ZERO_EXIT_CODE:     "Success",
+	NONZERO_EXIT_CODE:  "Runtime error",
+	KILLED_ON_SIGNAL:   "Killed on signal",
+	TIMED_OUT:          "Time limit exceeded",
+	INTERNAL_ERROR:     "Isolate internal error",
+	PARSING_META_ERROR: "Failed to parse meta file",
+}
+
+func (s SandboxExecutionStatus) String() string {
+	return sandboxExecutionStatusNames[s]
 }
 
 func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
@@ -47,10 +72,26 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 	time, _ := strconv.ParseFloat(result["time"], 64)
 	wallTime, _ := strconv.ParseFloat(result["time-wall"], 64)
 	memory, _ := strconv.Atoi(result["cg-mem"])
-	status := result["status"]
+	statusParsed := result["status"]
 	message := result["message"]
 	exitSignal, _ := strconv.Atoi(result["exitsig"])
+	exitCode, _ := strconv.Atoi(result["exitcode"])
+
 	isKilledParsed := result["killed"]
+
+	status := ZERO_EXIT_CODE
+	switch statusParsed {
+	case "RE":
+		status = NONZERO_EXIT_CODE
+	case "SG":
+		status = KILLED_ON_SIGNAL
+	case "TO":
+		status = TIMED_OUT
+	case "XX":
+		status = INTERNAL_ERROR
+	default:
+		status = ZERO_EXIT_CODE
+	}
 
 	isKilled := false
 	if isKilledParsed == "1" {
@@ -63,6 +104,7 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 		Memory:     memory,
 		Status:     status,
 		ExitSignal: exitSignal,
+		ExitCode:   exitCode,
 		Message:    message,
 		IsKilled:   isKilled,
 	}, nil

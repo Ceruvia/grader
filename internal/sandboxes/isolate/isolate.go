@@ -164,7 +164,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	return sandboxedCommand
 }
 
-func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) sandboxes.SandboxExecutionResult {
+func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) (sandboxes.SandboxExecutionResult, error) {
 	command := s.BuildCommand(runCommand, redirectionFiles)
 
 	cmd := exec.Command(command.Program, command.Args...)
@@ -174,24 +174,25 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 
 	if exitError != nil && !ok {
 		return sandboxes.SandboxExecutionResult{
-			Status:  "INTERNAL_ERROR",
-			Time:    -1,
-			Memory:  -1,
-			Message: exitError.Error(),
-		}
+			Status:   sandboxes.INTERNAL_ERROR,
+			ExitCode: exitError.ExitCode(),
+			Time:     -1,
+			Memory:   -1,
+			Message:  exitError.Error(),
+		}, exitError
 	}
 
 	res, err := sandboxes.ParseMetaResult(redirectionFiles.MetaFilename)
 	if err != nil {
 		return sandboxes.SandboxExecutionResult{
-			Status:  "INTERNAL_ERROR",
+			Status:  sandboxes.PARSING_META_ERROR,
 			Time:    -1,
 			Memory:  -1,
 			Message: err.Error(),
-		}
+		}, err
 	}
 
-	return res
+	return res, nil
 }
 
 func (s *IsolateSandbox) Cleanup() error {

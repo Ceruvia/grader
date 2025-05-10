@@ -49,7 +49,11 @@ func TestEndToEnd(t *testing.T) {
 	sbx.SetMemoryLimitInKilobytes(10240)
 	sbx.AddAllowedDirectory("/etc")
 
-	res := sbx.Execute(*command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"), red)
+	res, err := sbx.Execute(*command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"), red)
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	fmt.Printf("%+v", res)
 }
