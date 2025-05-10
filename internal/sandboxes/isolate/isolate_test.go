@@ -413,9 +413,7 @@ func TestEndToEnd(t *testing.T) {
 	for boxnum, test := range E2ETests {
 		t.Run(fmt.Sprintf("it should be able to %q with expected results", test.Title), func(t *testing.T) {
 			sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", boxnum)
-			// defer sbx.Cleanup()
-
-			t.Log(sbx.BoxDir)
+			defer sbx.Cleanup()
 
 			if err != nil {
 				t.Fatal(err)
