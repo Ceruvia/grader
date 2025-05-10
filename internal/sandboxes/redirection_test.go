@@ -32,7 +32,7 @@ func TestSetters(t *testing.T) {
 		}
 
 		want := sandboxes.RedirectionFiles{
-			StandardInputFilename: "isolate/tests/fake/source/file.c",
+			StandardInputFilename: "file.c",
 		}
 
 		utils.AssertDeep(t, red, want)
@@ -47,7 +47,7 @@ func TestSetters(t *testing.T) {
 		}
 
 		want := sandboxes.RedirectionFiles{
-			StandardOutputFilename: "isolate/tests/fake/source/file.c",
+			StandardOutputFilename: "file.c",
 		}
 
 		utils.AssertDeep(t, red, want)
@@ -62,7 +62,7 @@ func TestSetters(t *testing.T) {
 		}
 
 		want := sandboxes.RedirectionFiles{
-			StandardErrorFilename: "isolate/tests/fake/source/file.c",
+			StandardErrorFilename: "file.c",
 		}
 
 		utils.AssertDeep(t, red, want)

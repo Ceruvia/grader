@@ -32,7 +32,7 @@ func (r *RedirectionFiles) RedirectStandardInput(boxdir, filenameInsideBox strin
 	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
-	r.StandardInputFilename = boxdir + "/" + filenameInsideBox
+	r.StandardInputFilename = filenameInsideBox
 	return nil
 }
 
@@ -40,7 +40,7 @@ func (r *RedirectionFiles) RedirectStandardOutput(boxdir, filenameInsideBox stri
 	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
-	r.StandardOutputFilename = boxdir + "/" + filenameInsideBox
+	r.StandardOutputFilename = filenameInsideBox
 	return nil
 }
 
@@ -48,6 +48,6 @@ func (r *RedirectionFiles) RedirectStandardError(boxdir, filenameInsideBox strin
 	if _, err := os.Stat(boxdir + "/" + filenameInsideBox); err != nil {
 		return err
 	}
-	r.StandardErrorFilename = boxdir + "/" + filenameInsideBox
+	r.StandardErrorFilename = filenameInsideBox
 	return nil
 }
