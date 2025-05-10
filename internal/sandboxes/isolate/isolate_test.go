@@ -12,6 +12,73 @@ import (
 	"github.com/Ceruvia/grader/internal/utils"
 )
 
+func TestEndToEnd(t *testing.T) {
+	sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 999)
+
+	// defer sbx.Cleanup()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(sbx.BoxDir)
+
+	err = sbx.AddFile("tests/fake/source/hello.c")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sbx.AddFile("tests/fake/source/1.in")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sbx.AddFile("tests/fake/source/1.out")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sbx.AddFile("tests/fake/source/1.err")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sbx.AddFile("tests/fake/source/1.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	red := sandboxes.CreateRedirectionFiles()
+	err = red.RedirectStandardInput(sbx.BoxDir, "1.in")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = red.RedirectStandardOutput(sbx.BoxDir, "1.out")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = red.RedirectStandardError(sbx.BoxDir, "1.err")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = red.RedirectMeta(sbx.BoxDir, "1.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sbx.SetTimeLimitInMiliseconds(1000)
+	sbx.SetWallTimeLimitInMiliseconds(1000)
+	sbx.SetMemoryLimitInKilobytes(10240)
+	sbx.AddAllowedDirectory("/etc")
+
+	res := sbx.Execute(*command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"), red)
+
+	fmt.Printf("%+v", res)
+}
+
 func TestCreateIsolateSandbox(t *testing.T) {
 	t.Run("it should succesfully create an Isolate sandbox", func(t *testing.T) {
 		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
@@ -24,7 +91,7 @@ func TestCreateIsolateSandbox(t *testing.T) {
 			Filenames:     []string{},
 			FileSizeLimit: 100 * 1024,
 			MaxProcesses:  50,
-			BoxDir:        "/var/local/lib/isolate/990",
+			BoxDir:        "/var/local/lib/isolate/990/box",
 		}
 
 		if err != nil {
@@ -227,7 +294,7 @@ func TestBuildCommand(t *testing.T) {
 				FileSizeLimit: 100 * 1024,
 				MaxProcesses:  50,
 			},
-			ExpectedCommand: "isolate -b 990 -e --cg --cg-timing -p50 -f102400 --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 990 -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "Limits",
@@ -242,7 +309,7 @@ func TestBuildCommand(t *testing.T) {
 				WallTimeLimit: 10000,
 				MemoryLimit:   10240,
 			},
-			ExpectedCommand: "isolate -b 990 -e --cg --cg-timing -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 990 -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "Allowed Dir",
@@ -254,7 +321,7 @@ func TestBuildCommand(t *testing.T) {
 				FileSizeLimit: 100 * 1024,
 				MaxProcesses:  50,
 			},
-			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg --cg-timing -p50 -f102400 --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "Redirections",
@@ -272,7 +339,7 @@ func TestBuildCommand(t *testing.T) {
 				StandardErrorFilename:  "1.out.error",
 				MetaFilename:           "1.out.meta",
 			},
-			ExpectedCommand: "isolate -b 990 -e --cg --cg-timing -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 990 -e --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "All",
@@ -293,7 +360,7 @@ func TestBuildCommand(t *testing.T) {
 				StandardErrorFilename:  "1.out.error",
 				MetaFilename:           "1.out.meta",
 			},
-			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg --cg-timing -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 		},
 	}
 

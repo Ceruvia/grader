@@ -21,8 +21,7 @@ type IsolateSandbox struct {
 	AllowedDirs []string
 	Filenames   []string
 
-	BoxDir  string
-	Command []string
+	BoxDir string
 
 	TimeLimit     int
 	WallTimeLimit int
@@ -50,7 +49,7 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error)
 }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
-	_, err := copy(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))
+	err := s.MoveFileToBox(filepath)
 
 	if err != nil {
 		return err
@@ -58,6 +57,11 @@ func (s *IsolateSandbox) AddFile(filepath string) error {
 
 	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
 	return nil
+}
+
+func (s *IsolateSandbox) MoveFileToBox(filepath string) error {
+	_, err := copy(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))
+	return err
 }
 
 func (s *IsolateSandbox) ContainsFile(filename string) bool {
@@ -110,7 +114,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	sandboxedCommand.AddArgs("-e")
 
 	if s.MaxProcesses > 0 {
-		sandboxedCommand.AddArgs("--cg").AddArgs("--cg-timing").AddArgs(fmt.Sprintf("-p%d", s.MaxProcesses))
+		sandboxedCommand.AddArgs("--cg").AddArgs(fmt.Sprintf("-p%d", s.MaxProcesses))
 	}
 
 	if s.TimeLimit > 0 {
@@ -160,10 +164,34 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	return sandboxedCommand
 }
 
-func (s *IsolateSandbox) Execute(command command.CommandBuilder) {
-}
+func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) sandboxes.SandboxExecutionResult {
+	command := s.BuildCommand(runCommand, redirectionFiles)
 
-func (s *IsolateSandbox) ExecuteWithRedirections(command command.CommandBuilder, stdinFilepath, stdoutFilepath, stderrFilepath, metaFilepath string) {
+	cmd := exec.Command(command.Program, command.Args...)
+	_, err := cmd.CombinedOutput()
+
+	exitError, ok := err.(*exec.ExitError)
+
+	if exitError != nil && !ok {
+		return sandboxes.SandboxExecutionResult{
+			Status:  "INTERNAL_ERROR",
+			Time:    -1,
+			Memory:  -1,
+			Message: exitError.Error(),
+		}
+	}
+
+	res, err := sandboxes.ParseMetaResult(redirectionFiles.MetaFilename)
+	if err != nil {
+		return sandboxes.SandboxExecutionResult{
+			Status:  "INTERNAL_ERROR",
+			Time:    -1,
+			Memory:  -1,
+			Message: err.Error(),
+		}
+	}
+
+	return res
 }
 
 func (s *IsolateSandbox) Cleanup() error {
@@ -181,7 +209,7 @@ func (s *IsolateSandbox) initSandbox() error {
 	stdout, err := cmd.CombinedOutput()
 
 	if err == nil && cmd.ProcessState.ExitCode() == 0 {
-		s.BoxDir = strings.Trim(string(stdout), "\n")
+		s.BoxDir = strings.Trim(string(stdout), "\n") + "/box"
 		return nil
 	}
 
