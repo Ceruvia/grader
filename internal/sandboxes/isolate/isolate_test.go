@@ -28,43 +28,18 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = sbx.AddFile("tests/fake/source/1.in")
+	red := sandboxes.CreateRedirectionFiles(sbx.BoxDir)
+	err = red.CreateNewMetaFileAndRedirect("1.meta")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = sbx.AddFile("tests/fake/source/1.out")
+	err = red.CreateNewStandardOutputFileAndRedirect("1.out")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = sbx.AddFile("tests/fake/source/1.err")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = sbx.AddFile("tests/fake/source/1.meta")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	red := sandboxes.CreateRedirectionFiles()
-	err = red.RedirectStandardInput(sbx.BoxDir, "1.in")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = red.RedirectStandardOutput(sbx.BoxDir, "1.out")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = red.RedirectStandardError(sbx.BoxDir, "1.err")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = red.RedirectMeta(sbx.BoxDir, "1.meta")
+	err = red.RedirectStandardError("1.out")
 	if err != nil {
 		t.Fatal(err)
 	}
