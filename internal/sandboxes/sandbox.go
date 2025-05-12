@@ -1,19 +1,24 @@
 package sandboxes
 
-type Sandbox interface {
-	AddFile()
-	ContainsFile()
-	GetFile()
-	AddAllowedDirectory()
-	SetTimeLimitInMiliseconds()
-	SetWallTimeLimitInMiliseconds()
-	SetMemoryLimitInKilobytes()
-	ResetRedirection()
-	RedirectStandardInput()
-	RedirectStandardOutput()
-	RedirectStandardError()
-	CleanUp()
+import (
+	"github.com/Ceruvia/grader/internal/command"
+)
 
-	Execute()
-	GetResult()
+type Sandbox interface {
+	GetBoxdir() string
+
+	MoveFileToBox(filepath string) error
+	AddFile(filepath string) error
+	ContainsFile(filepath string) bool
+	GetFile(filename string) ([]byte, error)
+
+	AddAllowedDirectory(dirpath string) error
+	SetTimeLimitInMiliseconds(timeInMiliseconds int)
+	SetWallTimeLimitInMiliseconds(timeInMiliseconds int)
+	SetMemoryLimitInKilobytes(memoryInKilobytes int)
+
+	BuildCommand(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) *command.CommandBuilder
+	Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) (SandboxExecutionResult, error)
+
+	Cleanup() error
 }

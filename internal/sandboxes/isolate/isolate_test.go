@@ -116,14 +116,11 @@ func TestGetFile(t *testing.T) {
 	}
 
 	t.Run("it should be able to get a file", func(t *testing.T) {
-		file, err := sbx.GetFile("file.c")
+		data, err := sbx.GetFile("file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
-
-		data := make([]byte, 4)
-		file.Read(data)
 
 		got := string(data)
 		want := "smth"

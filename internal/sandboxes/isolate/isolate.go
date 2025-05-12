@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"slices"
@@ -68,17 +67,17 @@ func (s *IsolateSandbox) ContainsFile(filename string) bool {
 	return slices.Contains(s.Filenames, filename)
 }
 
-func (s *IsolateSandbox) GetFile(filename string) (fs.File, error) {
+func (s *IsolateSandbox) GetFile(filename string) ([]byte, error) {
 	// TODO: maybe custom error when file is not in s.Filenames
 	// TODO: maybe balikin []byte aja ketimbang fs.File
 
-	file, err := os.Open(appendBoxdir(s.BoxDir, filename))
+	data, err := os.ReadFile(appendBoxdir(s.BoxDir, filename))
 
 	if err != nil {
 		return nil, err
 	}
 
-	return file, nil
+	return data, nil
 }
 
 func (s *IsolateSandbox) AddAllowedDirectory(dirpath string) error {
