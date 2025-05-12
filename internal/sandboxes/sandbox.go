@@ -6,6 +6,11 @@ import (
 
 type Sandbox interface {
 	GetBoxdir() string
+	GetBoxId() int
+	GetTimeLimit() int
+	GetWallTimeLimit() int
+	GetFileSizeLimit() int
+	GetMaxProcesses() int
 
 	MoveFileToBox(filepath string) error
 	AddFile(filepath string) error

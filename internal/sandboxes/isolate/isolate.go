@@ -47,6 +47,13 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error)
 	return isolate, nil
 }
 
+func (s *IsolateSandbox) GetBoxdir() string     { return s.BoxDir }
+func (s *IsolateSandbox) GetBoxId() int         { return s.BoxId }
+func (s *IsolateSandbox) GetTimeLimit() int     { return s.TimeLimit }
+func (s *IsolateSandbox) GetWallTimeLimit() int { return s.WallTimeLimit }
+func (s *IsolateSandbox) GetFileSizeLimit() int { return s.FileSizeLimit }
+func (s *IsolateSandbox) GetMaxProcesses() int  { return s.MaxProcesses }
+
 func (s *IsolateSandbox) AddFile(filepath string) error {
 	err := s.MoveFileToBox(filepath)
 
