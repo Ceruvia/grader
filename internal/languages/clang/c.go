@@ -13,7 +13,7 @@ func (l CLanguage) GetAllowedExtention() []string {
 }
 
 func (l CLanguage) GetCompilationCommand(binaryFilename string, buildFilenames ...string) command.CommandBuilder {
-	return *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("-std=gnu99").AddArgs("-o").AddArgs(binaryFilename).AddArgs(buildFilenames...).AddArgs("-O2").AddArgs("lm")
+	return *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("-std=gnu99").AddArgs("-o").AddArgs(binaryFilename).AddArgs(buildFilenames...).AddArgs("-O2").AddArgs("-lm")
 }
 
 func (l CLanguage) GetExecutionCommand(binaryFilename string) command.CommandBuilder {
