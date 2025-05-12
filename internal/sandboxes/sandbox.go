@@ -9,6 +9,7 @@ type Sandbox interface {
 	GetBoxId() int
 	GetTimeLimit() int
 	GetWallTimeLimit() int
+	GetMemoryLimit() int
 	GetFileSizeLimit() int
 	GetMaxProcesses() int
 

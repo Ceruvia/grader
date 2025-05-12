@@ -51,6 +51,7 @@ func (s *IsolateSandbox) GetBoxdir() string     { return s.BoxDir }
 func (s *IsolateSandbox) GetBoxId() int         { return s.BoxId }
 func (s *IsolateSandbox) GetTimeLimit() int     { return s.TimeLimit }
 func (s *IsolateSandbox) GetWallTimeLimit() int { return s.WallTimeLimit }
+func (s *IsolateSandbox) GetMemoryLimit() int   { return s.MemoryLimit }
 func (s *IsolateSandbox) GetFileSizeLimit() int { return s.FileSizeLimit }
 func (s *IsolateSandbox) GetMaxProcesses() int  { return s.MaxProcesses }
 
