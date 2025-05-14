@@ -11,4 +11,5 @@ var (
 	VerdictCE  = Verdict{Name: "Compilation Error", Code: "CE"}
 	VerdictRE  = Verdict{Name: "Runtime Error", Code: "RE"}
 	VerdictTLE = Verdict{Name: "Time Limit Exceeded", Code: "TLE"}
+	VerdictXX  = Verdict{Name: "Internal Error", Code: "XX"}
 )
