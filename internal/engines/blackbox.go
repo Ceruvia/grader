@@ -9,7 +9,6 @@ import (
 
 type BlackboxGradingEngine struct {
 	Sandbox  sandboxes.Sandbox
-	Compiler compilers.Compiler
 	Language languages.Language
 }
 
@@ -19,14 +18,8 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission) (
 		return BlackboxGradingEngine{}, languages.ErrLanguageNotExists
 	}
 
-	compiler, err := compilers.CreateCompilerBasedOnLang(sbx, language)
-	if err != nil {
-		return BlackboxGradingEngine{}, err
-	}
-
 	return BlackboxGradingEngine{
 		Sandbox:  sbx,
-		Compiler: compiler,
 		Language: language,
 	}, nil
 }

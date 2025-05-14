@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/compilers"
 	"github.com/Ceruvia/grader/internal/engines"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
@@ -42,11 +41,6 @@ func TestConstructor(t *testing.T) {
 			},
 		}
 
-		compiler, err := compilers.PrepareSingleSourceFileCompiler(sbx, languages.CGradingLanguage)
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		engine, err := engines.CreateBlackboxGradingEngine(sbx, submission)
 		if err != nil {
 			t.Errorf("expected to get no error, instead got %q", err)
@@ -54,7 +48,6 @@ func TestConstructor(t *testing.T) {
 
 		want := engines.BlackboxGradingEngine{
 			Sandbox:  sbx,
-			Compiler: compiler,
 			Language: languages.CGradingLanguage,
 		}
 
