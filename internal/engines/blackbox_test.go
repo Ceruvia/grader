@@ -2,12 +2,13 @@ package engines_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/engines"
+	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
-	"github.com/Ceruvia/grader/internal/sandboxes"
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
 	"github.com/Ceruvia/grader/internal/utils"
 )
@@ -16,7 +17,7 @@ func TestConstructor(t *testing.T) {
 	t.Run("it should return error when language provided does not exist", func(t *testing.T) {
 		_, err := engines.CreateBlackboxGradingEngine(&isolate.IsolateSandbox{}, models.Submission{
 			Language: "gaada bahasanya abangku",
-		})
+		}, evaluator.SimpleEvaluator{})
 
 		if err != languages.ErrLanguageNotExists {
 			t.Errorf("expected LanguageNotExists error but instead got %q", err)
@@ -41,14 +42,15 @@ func TestConstructor(t *testing.T) {
 			},
 		}
 
-		engine, err := engines.CreateBlackboxGradingEngine(sbx, submission)
+		engine, err := engines.CreateBlackboxGradingEngine(sbx, submission, evaluator.SimpleEvaluator{})
 		if err != nil {
 			t.Errorf("expected to get no error, instead got %q", err)
 		}
 
 		want := engines.BlackboxGradingEngine{
-			Sandbox:  sbx,
-			Language: languages.CGradingLanguage,
+			Sandbox:   sbx,
+			Language:  languages.CGradingLanguage,
+			Evaluator: evaluator.SimpleEvaluator{},
 		}
 
 		utils.AssertDeep(t, engine, want)
@@ -85,7 +87,7 @@ func TestRun(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission)
+		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission, evaluator.SimpleEvaluator{})
 		if err != nil {
 			t.Errorf("expected to get no error, instead got %q", err)
 		}
@@ -93,8 +95,8 @@ func TestRun(t *testing.T) {
 		result, err := engine.Run("1.in", "1.out")
 
 		utils.AssertNotError(t, err)
-		if result.Message != "Exited with error status 127" || result.Status != sandboxes.NONZERO_EXIT_CODE {
-			t.Errorf("expected error code 127 (not found) with RE, instead got %+v", result)
+		if result.Verdict != models.VerdictRE || !strings.Contains(result.ErrorMessage, "No such file or directory") {
+			t.Errorf("expected Runtime Error status with File not found error message, instead got %+v", result)
 		}
 	})
 
@@ -119,7 +121,7 @@ func TestRun(t *testing.T) {
 		}
 		os.Chmod(sbx.BoxDir+"/outfile", 0700)
 
-		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission)
+		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission, evaluator.SimpleEvaluator{})
 		if err != nil {
 			t.Errorf("expected to get no error, instead got %q", err)
 		}
@@ -127,28 +129,8 @@ func TestRun(t *testing.T) {
 		result, err := engine.Run("1.in", "1.out")
 
 		utils.AssertNotError(t, err)
-		if result.Status != sandboxes.ZERO_EXIT_CODE {
-			t.Errorf("expected Success status, instead got %+v", result)
-		}
-
-		data, err := sbx.GetFile("1.out.actual")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if string(data) != "Hello, World!\n" {
-			t.Errorf("expected Hello, World!\n, instead got %s", string(data))
+		if result.Verdict != models.VerdictAC {
+			t.Errorf("expected Accepted status, instead got %+v", result)
 		}
 	})
 }
-
-// type Submission struct {
-// 	Id             string
-// 	TempDir        string
-// 	Language       string
-// 	BuildFiles     []string // files originating from problem statement
-// 	SubmittedFiles []string // files originating from user upload / submit
-// 	TCInputFiles   []string
-// 	TCOutputFiles  []string
-// 	Limits         GradingLimit
-// }

@@ -2,53 +2,69 @@ package engines
 
 import (
 	"github.com/Ceruvia/grader/internal/compilers"
+	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 type BlackboxGradingEngine struct {
-	Sandbox  sandboxes.Sandbox
-	Language languages.Language
+	Sandbox   sandboxes.Sandbox
+	Language  languages.Language
+	Evaluator evaluator.Evaluator
 }
 
-func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission) (BlackboxGradingEngine, error) {
+func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission, evaluator evaluator.Evaluator) (BlackboxGradingEngine, error) {
 	language := languages.GetLanguageSimpleton(sub.Language)
 	if language.GetName() == "not exists" {
 		return BlackboxGradingEngine{}, languages.ErrLanguageNotExists
 	}
 
 	return BlackboxGradingEngine{
-		Sandbox:  sbx,
-		Language: language,
+		Sandbox:   sbx,
+		Language:  language,
+		Evaluator: evaluator,
 	}, nil
 }
 
-func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameInBox string) (sandboxes.SandboxExecutionResult, error) {
+func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameInBox string) (models.EngineRunResult, error) {
 	redirectionFiles := sandboxes.CreateRedirectionFiles(ge.Sandbox.GetBoxdir())
 	err := redirectionFiles.CreateNewMetaFileAndRedirect(expectedOutputFilenameInBox + ".meta")
 	if err != nil {
-		return sandboxes.SandboxExecutionResult{}, err
+		return models.EngineRunResult{
+			Verdict: models.VerdictXX,
+		}, err
 	}
 	err = redirectionFiles.RedirectStandardInput(inputFilenameInBox)
 	if err != nil {
-		return sandboxes.SandboxExecutionResult{}, err
+		return models.EngineRunResult{
+			Verdict: models.VerdictXX,
+		}, err
 	}
 	err = redirectionFiles.CreateNewStandardOutputFileAndRedirect(expectedOutputFilenameInBox + ".actual")
 	if err != nil {
-		return sandboxes.SandboxExecutionResult{}, err
+		return models.EngineRunResult{
+			Verdict: models.VerdictXX,
+		}, err
 	}
 	err = redirectionFiles.RedirectStandardError(expectedOutputFilenameInBox + ".actual")
 	if err != nil {
-		return sandboxes.SandboxExecutionResult{}, err
+		return models.EngineRunResult{
+			Verdict: models.VerdictXX,
+		}, err
 	}
 
-	result, err := ge.Sandbox.Execute(
+	execResult, err := ge.Sandbox.Execute(
 		ge.Language.GetExecutionCommand(compilers.CompilationBinaryOutputFilename),
 		redirectionFiles,
 	)
+
 	if err != nil {
-		return sandboxes.SandboxExecutionResult{}, err
+		return models.EngineRunResult{
+			Verdict: models.VerdictXX,
+		}, err
 	}
-	return result, nil
+
+	thisRunResult, err := ge.Evaluator.Evaluate(ge.Sandbox, execResult, expectedOutputFilenameInBox, expectedOutputFilenameInBox+".actual")
+	return thisRunResult, err
 }
