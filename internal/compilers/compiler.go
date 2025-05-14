@@ -1,8 +1,9 @@
 package compilers
 
 const (
-	CompilationOutputFilename = "_compile.out"
-	CompilationMetaFilename   = "_compile.meta"
+	CompilationOutputFilename       = "_compile.out"
+	CompilationMetaFilename         = "_compile.meta"
+	CompilationBinaryOutputFilename = "outfile"
 )
 
 type Compiler interface {

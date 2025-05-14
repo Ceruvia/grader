@@ -1,6 +1,7 @@
 package compilers
 
 type CompilerResult struct {
-	IsSuccess    bool
-	StdoutStderr string
+	IsSuccess      bool
+	BinaryFilename string
+	StdoutStderr   string
 }
