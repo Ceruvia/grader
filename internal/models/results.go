@@ -1,9 +1,7 @@
-package engines
-
-import "github.com/Ceruvia/grader/internal/models"
+package models
 
 type EngineRunResult struct {
-	Verdict                models.Verdict
+	Verdict                Verdict
 	TimeToRunInMiliseconds int
 	MemoryUsedInKilobytes  int
 	HasErrorMessage        bool
