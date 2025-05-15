@@ -1,6 +1,7 @@
 package internal_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal"
@@ -123,6 +124,99 @@ func TestGradingC(t *testing.T) {
 
 		assertGradingResult(t, result, want)
 
+	})
+
+	t.Run("it should return a compile error if file is uncompileable", func(t *testing.T) {
+		submission := models.Submission{
+			Id:            "awjofi92",
+			TempDir:       "../tests/c_test/uncompileable_singular",
+			Language:      "c",
+			TCInputFiles:  []string{"1.in"},
+			TCOutputFiles: []string{"1.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
+		result, _ := internal.GradeSubmission(990, submission)
+
+		want := models.GradingResult{
+			Status:    "Compile Error",
+			IsSuccess: false,
+		}
+
+		assertGradingResult(t, result, want)
+	})
+
+	t.Run("it should return a RE verdict in one of it verdicts if file has RE", func(t *testing.T) {
+		submission := models.Submission{
+			Id:            "awjofi92",
+			TempDir:       "../tests/c_test/runtimeerror_singular",
+			Language:      "c",
+			TCInputFiles:  []string{"1.in", "2.in"},
+			TCOutputFiles: []string{"1.out", "2.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
+		result, _ := internal.GradeSubmission(990, submission)
+
+		want := models.GradingResult{
+			Status:    "Success",
+			IsSuccess: true,
+			TestcaseGradingResult: []models.EngineRunResult{
+				{
+					InputFilename:   "1.in",
+					OutputFilename:  "1.out",
+					Verdict:         models.VerdictRE,
+					HasErrorMessage: true,
+				},
+				{
+					InputFilename:   "2.in",
+					OutputFilename:  "2.out",
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+				},
+			},
+		}
+
+		assertGradingResult(t, result, want)
+	})
+
+	t.Run("it should return a TLE verdict in one of it verdicts if it exceeds time limit", func(t *testing.T) {
+		submission := models.Submission{
+			Id:            "awjofi92",
+			TempDir:       "../tests/c_test/timelimit_singular",
+			Language:      "c",
+			TCInputFiles:  []string{"1.in"},
+			TCOutputFiles: []string{"1.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
+		result, _ := internal.GradeSubmission(990, submission)
+
+		fmt.Println(result)
+
+		want := models.GradingResult{
+			Status:    "Success",
+			IsSuccess: true,
+			TestcaseGradingResult: []models.EngineRunResult{
+				{
+					InputFilename:   "1.in",
+					OutputFilename:  "1.out",
+					Verdict:         models.VerdictTLE,
+					HasErrorMessage: true,
+				},
+			},
+		}
+
+		assertGradingResult(t, result, want)
 	})
 }
 
