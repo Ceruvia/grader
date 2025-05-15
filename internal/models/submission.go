@@ -13,6 +13,9 @@ type Submission struct {
 	BuildScript   string
 	CompileScript string
 
+	// Non-builder related stuff
+	MainSourceFilename string
+
 	// Testcases
 	TCInputFiles  []string
 	TCOutputFiles []string
