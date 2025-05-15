@@ -63,10 +63,14 @@ func TestNormalCompiler(t *testing.T) {
 			t.Errorf("expected got no error, but got %q", err)
 		}
 
-		res, err := compiler.Compile([]string{"ganjilgenap.c", "array.c"})
+		res, err := compiler.Compile("ganjilgenap.c", []string{"ganjilgenap.c", "array.c"})
 
-		if !res.IsSuccess {
-			t.Errorf("expected succesful result, instead got %+v and %q", res, err)
+		want := compilers.CompilerResult{
+			IsSuccess:      true,
+			BinaryFilename: "ganjilgenap",
+			StdoutStderr:   "",
 		}
+
+		utils.AssertDeep(t, res, want)
 	})
 }

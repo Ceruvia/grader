@@ -7,5 +7,5 @@ const (
 )
 
 type Compiler interface {
-	Compile(sourceFilenamesInsideBoxdir []string) (CompilerResult, error)
+	Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (CompilerResult, error)
 }

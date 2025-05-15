@@ -40,8 +40,8 @@ func PrepareSingleSourceFileCompiler(sandbox sandboxes.Sandbox, language languag
 }
 
 // Compiles the source files inside boxdir. Files are assumed to be in boxdir, and will be checked trough sandbox.
-func (c SingleSourceFileCompiler) Compile(sourceFilenamesInsideBoxdir []string) (CompilerResult, error) {
-	compileCommand := c.Language.GetCompilationCommand(CompilationBinaryOutputFilename, sourceFilenamesInsideBoxdir...)
+func (c SingleSourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (CompilerResult, error) {
+	compileCommand := c.Language.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
 	result, err := c.Sandbox.Execute(compileCommand, c.Redirections)
 	if err != nil {
 		return CompilerResult{
@@ -53,7 +53,7 @@ func (c SingleSourceFileCompiler) Compile(sourceFilenamesInsideBoxdir []string) 
 	if result.Status == sandboxes.ZERO_EXIT_CODE {
 		return CompilerResult{
 			IsSuccess:      true,
-			BinaryFilename: CompilationBinaryOutputFilename,
+			BinaryFilename: c.Language.GetExecutableFilename(mainSourceFilename),
 		}, nil
 	} else if result.Status == sandboxes.NONZERO_EXIT_CODE {
 		data, err := c.Sandbox.GetFile(CompilationOutputFilename)
