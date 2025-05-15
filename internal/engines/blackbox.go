@@ -32,25 +32,33 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameIn
 	err := redirectionFiles.CreateNewMetaFileAndRedirect(expectedOutputFilenameInBox + ".meta")
 	if err != nil {
 		return models.EngineRunResult{
-			Verdict: models.VerdictXX,
+			InputFilename:  inputFilenameInBox,
+			OutputFilename: expectedOutputFilenameInBox,
+			Verdict:        models.VerdictXX,
 		}, err
 	}
 	err = redirectionFiles.RedirectStandardInput(inputFilenameInBox)
 	if err != nil {
 		return models.EngineRunResult{
-			Verdict: models.VerdictXX,
+			InputFilename:  inputFilenameInBox,
+			OutputFilename: expectedOutputFilenameInBox,
+			Verdict:        models.VerdictXX,
 		}, err
 	}
 	err = redirectionFiles.CreateNewStandardOutputFileAndRedirect(expectedOutputFilenameInBox + ".actual")
 	if err != nil {
 		return models.EngineRunResult{
-			Verdict: models.VerdictXX,
+			InputFilename:  inputFilenameInBox,
+			OutputFilename: expectedOutputFilenameInBox,
+			Verdict:        models.VerdictXX,
 		}, err
 	}
 	err = redirectionFiles.RedirectStandardError(expectedOutputFilenameInBox + ".actual")
 	if err != nil {
 		return models.EngineRunResult{
-			Verdict: models.VerdictXX,
+			InputFilename:  inputFilenameInBox,
+			OutputFilename: expectedOutputFilenameInBox,
+			Verdict:        models.VerdictXX,
 		}, err
 	}
 
@@ -61,10 +69,15 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameIn
 
 	if err != nil {
 		return models.EngineRunResult{
-			Verdict: models.VerdictXX,
+			InputFilename:  inputFilenameInBox,
+			OutputFilename: expectedOutputFilenameInBox,
+			Verdict:        models.VerdictXX,
 		}, err
 	}
 
 	thisRunResult, err := ge.Evaluator.Evaluate(ge.Sandbox, execResult, expectedOutputFilenameInBox, expectedOutputFilenameInBox+".actual")
+	thisRunResult.InputFilename = inputFilenameInBox
+	thisRunResult.OutputFilename = expectedOutputFilenameInBox
+
 	return thisRunResult, err
 }
