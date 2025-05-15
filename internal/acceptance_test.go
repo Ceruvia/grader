@@ -224,6 +224,41 @@ func TestGradingC(t *testing.T) {
 
 func TestGradingJava(t *testing.T) {
 	t.Run("it should be able to compile, run, and grade a simple Hello, World code", func(t *testing.T) {
+		submission := models.Submission{
+			Id:                 "awjofi92",
+			TempDir:            "../tests/java_test/hello",
+			Language:           "Java",
+			MainSourceFilename: "HelloWorld.java",
+			TCInputFiles:       []string{"1.in", "2.in"},
+			TCOutputFiles:      []string{"1.out", "2.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
+		result, _ := internal.GradeSubmission(990, submission)
+
+		want := models.GradingResult{
+			Status:    "Success",
+			IsSuccess: true,
+			TestcaseGradingResult: []models.EngineRunResult{
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "1.in",
+					OutputFilename:  "1.out",
+				},
+				{
+					Verdict:         models.VerdictWA,
+					HasErrorMessage: false,
+					InputFilename:   "2.in",
+					OutputFilename:  "2.out",
+				},
+			},
+		}
+
+		assertGradingResult(t, result, want)
 	})
 }
 
