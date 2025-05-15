@@ -15,7 +15,7 @@ func GetLanguageSimpleton(languageName string) Language {
 	switch languageName {
 	case "c":
 		return CGradingLanguage
-	case "java":
+	case "Java":
 		return JavaGradingLanguage
 	default:
 		return ELanguageNotExists

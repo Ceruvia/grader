@@ -47,13 +47,13 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error)
 	return isolate, nil
 }
 
-func (s *IsolateSandbox) GetBoxdir() string     { return s.BoxDir }
-func (s *IsolateSandbox) GetBoxId() int         { return s.BoxId }
-func (s *IsolateSandbox) GetTimeLimit() int     { return s.TimeLimit }
-func (s *IsolateSandbox) GetWallTimeLimit() int { return s.WallTimeLimit }
-func (s *IsolateSandbox) GetMemoryLimit() int   { return s.MemoryLimit }
-func (s *IsolateSandbox) GetFileSizeLimit() int { return s.FileSizeLimit }
-func (s *IsolateSandbox) GetMaxProcesses() int  { return s.MaxProcesses }
+func (s *IsolateSandbox) GetBoxdir() string           { return s.BoxDir }
+func (s *IsolateSandbox) GetBoxId() int               { return s.BoxId }
+func (s *IsolateSandbox) GetTimeLimit() int           { return s.TimeLimit }
+func (s *IsolateSandbox) GetWallTimeLimit() int       { return s.WallTimeLimit }
+func (s *IsolateSandbox) GetMemoryLimit() int         { return s.MemoryLimit }
+func (s *IsolateSandbox) GetFileSizeLimit() int       { return s.FileSizeLimit }
+func (s *IsolateSandbox) GetMaxProcesses() int        { return s.MaxProcesses }
 func (s *IsolateSandbox) GetFilenamesInBox() []string { return s.Filenames }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
@@ -66,7 +66,6 @@ func (s *IsolateSandbox) AddFile(filepath string) error {
 	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
 	return nil
 }
-
 
 func (s *IsolateSandbox) MoveFileToBox(filepath string) error {
 	_, err := copy(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))
@@ -116,6 +115,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	sandboxedCommand := command.GetCommandBuilder(s.IsolatePath)
 	sandboxedCommand.AddArgs("-b " + strconv.Itoa(s.BoxId))
 
+	sandboxedCommand.AddArgs("--dir=/etc")
 	for _, dir := range s.AllowedDirs {
 		sandboxedCommand.AddArgs(fmt.Sprintf("--dir=%s:rw", dir))
 	}

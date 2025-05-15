@@ -15,6 +15,8 @@ func CreateCompilerBasedOnLang(sandbox sandboxes.Sandbox, language languages.Lan
 	switch languageName {
 	case "c":
 		comp, err = PrepareSingleSourceFileCompiler(sandbox, language)
+	case "Java":
+		comp, err = PrepareSingleSourceFileCompiler(sandbox, language)
 	}
 
 	return comp, err

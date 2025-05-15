@@ -1,6 +1,8 @@
 package javalang
 
 import (
+	"fmt"
+
 	"github.com/Ceruvia/grader/internal/command"
 	"github.com/Ceruvia/grader/internal/utils"
 )
@@ -16,23 +18,23 @@ func (l JavaLanguage) GetAllowedExtention() []string {
 }
 
 func (l JavaLanguage) GetCompilationCommand(mainSourceFilename string, sourceFilenames ...string) command.CommandBuilder {
-	executableFilename := utils.RemoveExtention(mainSourceFilename)
-	mainClassName := l.GetExecutableFilename(mainSourceFilename)
+	executableFilename := l.GetExecutableFilename(mainSourceFilename)
+	mainClassName := utils.RemoveExtention(mainSourceFilename)
 
-	compileSourceToClassCommand := *command.GetCommandBuilder("/usr/bin/javac").
-		AddArgs(sourceFilenames...).
-		AddArgs(mainSourceFilename).AddArgs(sourceFilenames...)
+	javacCommand := *command.GetCommandBuilder("/usr/bin/javac").
+		AddArgs(utils.Map(sourceFilenames, quote)...)
 
-	compileClassToJarCommand := *command.GetCommandBuilder("/usr/bin/jar").
+	jarCommand := *command.GetCommandBuilder("/usr/bin/jar").
 		AddArgs("cfe").
-		AddArgs(executableFilename).
-		AddArgs(mainClassName).
+		AddArgs(quote(executableFilename)).
+		AddArgs(quote(mainClassName)).
 		AddArgs("*.class")
 
-	return *command.GetCommandBuilder("/bin/bash").AddArgs("-c").
-		AddArgs(compileSourceToClassCommand.Program).AddArgs(compileSourceToClassCommand.Args...).
-		AddArgs("&&").
-		AddArgs(compileClassToJarCommand.Program).AddArgs(compileClassToJarCommand.Args...)
+	cmdStr := fmt.Sprintf("%s && %s", javacCommand.BuildFullCommand(), jarCommand.BuildFullCommand())
+
+	return *command.GetCommandBuilder("/bin/bash").
+		AddArgs("-c").
+		AddArgs(cmdStr)
 }
 
 func (l JavaLanguage) GetExecutionCommand(mainSourceFilename string) command.CommandBuilder {
@@ -43,4 +45,8 @@ func (l JavaLanguage) GetExecutionCommand(mainSourceFilename string) command.Com
 
 func (l JavaLanguage) GetExecutableFilename(sourceFilename string) string {
 	return utils.RemoveExtention(sourceFilename) + ".jar"
+}
+
+func quote(filename string) string {
+	return `"` + filename + `"`
 }
