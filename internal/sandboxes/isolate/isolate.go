@@ -54,6 +54,7 @@ func (s *IsolateSandbox) GetWallTimeLimit() int { return s.WallTimeLimit }
 func (s *IsolateSandbox) GetMemoryLimit() int   { return s.MemoryLimit }
 func (s *IsolateSandbox) GetFileSizeLimit() int { return s.FileSizeLimit }
 func (s *IsolateSandbox) GetMaxProcesses() int  { return s.MaxProcesses }
+func (s *IsolateSandbox) GetFilenamesInBox() []string { return s.Filenames }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
 	err := s.MoveFileToBox(filepath)
@@ -65,6 +66,7 @@ func (s *IsolateSandbox) AddFile(filepath string) error {
 	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
 	return nil
 }
+
 
 func (s *IsolateSandbox) MoveFileToBox(filepath string) error {
 	_, err := copy(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))

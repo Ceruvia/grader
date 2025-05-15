@@ -12,6 +12,7 @@ type Sandbox interface {
 	GetMemoryLimit() int
 	GetFileSizeLimit() int
 	GetMaxProcesses() int
+	GetFilenamesInBox() []string
 
 	MoveFileToBox(filepath string) error
 	AddFile(filepath string) error
