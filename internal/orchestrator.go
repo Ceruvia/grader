@@ -59,7 +59,7 @@ func GradeSubmission(boxId int, submission models.Submission) (models.GradingRes
 		}, err
 	}
 
-	compilationRes, err := compiler.Compile(sourceFilenames)
+	compilationRes, err := compiler.Compile(submission.MainSourceFilename, sourceFilenames)
 	if !compilationRes.IsSuccess {
 		return models.GradingResult{
 			Status:       "Compile Error",

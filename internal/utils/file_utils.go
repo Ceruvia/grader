@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func MoveFileFromDirToDir(srcDir, dstDir string) error {
@@ -59,4 +60,9 @@ func MoveFile(src, dst string) error {
 	}
 
 	return nil
+}
+
+func RemoveExtention(filename string) string {
+	extention := filepath.Ext(filename)
+	return strings.TrimSuffix(filename, extention)
 }
