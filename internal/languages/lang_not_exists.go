@@ -20,7 +20,7 @@ func (l LanguageNotExists) GetAllowedExtention() []string {
 	return []string{}
 }
 
-func (l LanguageNotExists) GetCompilationCommand(binaryFilename string, buildFilenames ...string) command.CommandBuilder {
+func (l LanguageNotExists) GetCompilationCommand(mainSourceFilename string, sourceFilenames ...string) command.CommandBuilder {
 	return command.CommandBuilder{}
 }
 
