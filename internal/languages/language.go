@@ -7,4 +7,5 @@ type Language interface {
 	GetAllowedExtention() []string
 	GetCompilationCommand(binaryFilename string, buildFilenames ...string) command.CommandBuilder
 	GetExecutionCommand(binaryFilename string) command.CommandBuilder
+	GetExecutableFilename(sourceFilename string) string
 }

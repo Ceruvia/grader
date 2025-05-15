@@ -27,3 +27,7 @@ func (l LanguageNotExists) GetCompilationCommand(binaryFilename string, buildFil
 func (l LanguageNotExists) GetExecutionCommand(binaryFilename string) command.CommandBuilder {
 	return command.CommandBuilder{}
 }
+
+func (l LanguageNotExists) GetExecutableFilename(sourceFilename string) string {
+	return ""
+}
