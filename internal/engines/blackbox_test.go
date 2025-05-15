@@ -29,11 +29,11 @@ func TestConstructor(t *testing.T) {
 			BoxDir: "../../tests/not_commited",
 		}
 		submission := models.Submission{
-			Id:             "awjofi92",
-			TempDir:        "/temp/fake",
-			Language:       "c",
-			TCInputFiles:   []string{"1.in"},
-			TCOutputFiles:  []string{"1.out"},
+			Id:            "awjofi92",
+			TempDir:       "/temp/fake",
+			Language:      "c",
+			TCInputFiles:  []string{"1.in"},
+			TCOutputFiles: []string{"1.out"},
 			Limits: models.GradingLimit{
 				TimeInMiliseconds: 1000,
 				MemoryInKilobytes: 102400,
@@ -57,11 +57,12 @@ func TestConstructor(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	submission := models.Submission{
-		Id:             "awjofi92",
-		TempDir:        "../../tests/c_test/hello",
-		Language:       "c",
-		TCInputFiles:   []string{"1.in"},
-		TCOutputFiles:  []string{"1.out"},
+		Id:                 "awjofi92",
+		TempDir:            "../../tests/c_test/hello",
+		Language:           "c",
+		MainSourceFilename: "hello.c",
+		TCInputFiles:       []string{"1.in"},
+		TCOutputFiles:      []string{"1.out"},
 		Limits: models.GradingLimit{
 			TimeInMiliseconds: 1000,
 			MemoryInKilobytes: 102400,
@@ -111,11 +112,11 @@ func TestRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = sbx.AddFile(submission.TempDir + "/outfile") // Give exec permission
+		err = sbx.AddFile(submission.TempDir + "/hello") // Give exec permission
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.Chmod(sbx.BoxDir+"/outfile", 0700)
+		os.Chmod(sbx.BoxDir+"/hello", 0700)
 
 		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission, evaluator.SimpleEvaluator{})
 		if err != nil {

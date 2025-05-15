@@ -1,7 +1,6 @@
 package engines
 
 import (
-	"github.com/Ceruvia/grader/internal/compilers"
 	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
@@ -9,9 +8,10 @@ import (
 )
 
 type BlackboxGradingEngine struct {
-	Sandbox   sandboxes.Sandbox
-	Language  languages.Language
-	Evaluator evaluator.Evaluator
+	Sandbox            sandboxes.Sandbox
+	Language           languages.Language
+	Evaluator          evaluator.Evaluator
+	ExecutableFilename string
 }
 
 func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission, evaluator evaluator.Evaluator) (BlackboxGradingEngine, error) {
@@ -25,9 +25,10 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission, e
 	sbx.SetMemoryLimitInKilobytes(sub.Limits.MemoryInKilobytes)
 
 	return BlackboxGradingEngine{
-		Sandbox:   sbx,
-		Language:  language,
-		Evaluator: evaluator,
+		Sandbox:            sbx,
+		Language:           language,
+		Evaluator:          evaluator,
+		ExecutableFilename: language.GetExecutableFilename(sub.MainSourceFilename),
 	}, nil
 }
 
@@ -67,7 +68,7 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameIn
 	}
 
 	execResult, err := ge.Sandbox.Execute(
-		ge.Language.GetExecutionCommand(compilers.CompilationBinaryOutputFilename),
+		ge.Language.GetExecutionCommand(ge.ExecutableFilename),
 		redirectionFiles,
 	)
 
