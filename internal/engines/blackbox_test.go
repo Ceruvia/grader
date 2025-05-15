@@ -32,8 +32,6 @@ func TestConstructor(t *testing.T) {
 			Id:             "awjofi92",
 			TempDir:        "/temp/fake",
 			Language:       "c",
-			BuildFiles:     []string{},
-			SubmittedFiles: []string{"hello.c"},
 			TCInputFiles:   []string{"1.in"},
 			TCOutputFiles:  []string{"1.out"},
 			Limits: models.GradingLimit{
@@ -62,8 +60,6 @@ func TestRun(t *testing.T) {
 		Id:             "awjofi92",
 		TempDir:        "../../tests/c_test/hello",
 		Language:       "c",
-		BuildFiles:     []string{},
-		SubmittedFiles: []string{"hello.c"},
 		TCInputFiles:   []string{"1.in"},
 		TCOutputFiles:  []string{"1.out"},
 		Limits: models.GradingLimit{
