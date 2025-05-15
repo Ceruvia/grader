@@ -20,6 +20,10 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission, e
 		return BlackboxGradingEngine{}, languages.ErrLanguageNotExists
 	}
 
+	sbx.SetTimeLimitInMiliseconds(sub.Limits.TimeInMiliseconds)
+	sbx.SetWallTimeLimitInMiliseconds(sub.Limits.TimeInMiliseconds)
+	sbx.SetMemoryLimitInKilobytes(sub.Limits.MemoryInKilobytes)
+
 	return BlackboxGradingEngine{
 		Sandbox:   sbx,
 		Language:  language,
