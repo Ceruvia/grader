@@ -351,6 +351,65 @@ func TestMakefile(t *testing.T) {
 
 		assertGradingResult(t, result, want)
 	})
+
+	t.Run("it should be able to use Makefile with C language", func(t *testing.T) {
+		submission := models.Submission{
+			Id:            "awjofi92",
+			TempDir:       "../tests/makefile_test/java_makefile",
+			Language:      "Java",
+			UseBuilder:    true,
+			Builder:       "Makefile",
+			CompileScript: "Main.class",
+			RunScript:     "Main",
+			TCInputFiles:  []string{"1.in", "2.in", "3.in", "4.in", "5.in"},
+			TCOutputFiles: []string{"1.out", "2.out", "3.out", "4.out", "5.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
+		result, _ := internal.GradeSubmission(202, submission)
+
+		want := models.GradingResult{
+			Status:    "Success",
+			IsSuccess: true,
+			TestcaseGradingResult: []models.EngineRunResult{
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "1.in",
+					OutputFilename:  "1.out",
+				},
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "2.in",
+					OutputFilename:  "2.out",
+				},
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "3.in",
+					OutputFilename:  "3.out",
+				},
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "4.in",
+					OutputFilename:  "4.out",
+				},
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "5.in",
+					OutputFilename:  "5.out",
+				},
+			},
+		}
+
+		assertGradingResult(t, result, want)
+	})
 }
 
 func assertGradingResult(t testing.TB, got, want models.GradingResult) {
