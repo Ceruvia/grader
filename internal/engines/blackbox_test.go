@@ -69,7 +69,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 	t.Run("it should error when the binary file isn't found", func(t *testing.T) {
-		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
+		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 15)
 		if err != nil {
 			t.Fatal(err)
 		}

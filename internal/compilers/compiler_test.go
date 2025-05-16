@@ -11,7 +11,7 @@ import (
 
 func TestNormalCompiler(t *testing.T) {
 	t.Run("it should be able to initialize a Normal compiler", func(t *testing.T) {
-		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
+		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 13)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -28,11 +28,11 @@ func TestNormalCompiler(t *testing.T) {
 		utils.AssertDeep(t, compiler.Sandbox.GetMemoryLimit(), 1024*1024)
 		utils.AssertDeep(t, compiler.Redirections.StandardErrorFilename, compilers.CompilationOutputFilename)
 		utils.AssertDeep(t, compiler.Redirections.StandardOutputFilename, compilers.CompilationOutputFilename)
-		utils.AssertDeep(t, compiler.Redirections.MetaFilename, "/var/local/lib/isolate/990/box/"+compilers.CompilationMetaFilename)
+		utils.AssertDeep(t, compiler.Redirections.MetaFilename, "/var/local/lib/isolate/13/box/"+compilers.CompilationMetaFilename)
 	})
 
 	t.Run("it should be able to compile a c language", func(t *testing.T) {
-		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
+		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 14)
 		if err != nil {
 			t.Fatal(err)
 		}

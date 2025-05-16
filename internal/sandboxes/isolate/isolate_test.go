@@ -14,17 +14,17 @@ import (
 
 func TestCreateIsolateSandbox(t *testing.T) {
 	t.Run("it should succesfully create an Isolate sandbox", func(t *testing.T) {
-		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
+		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 1)
 		defer sbx.Cleanup()
 
 		want := isolate.IsolateSandbox{
 			IsolatePath:   "/usr/local/bin/isolate",
-			BoxId:         990,
+			BoxId:         1,
 			AllowedDirs:   []string{},
 			Filenames:     []string{},
 			FileSizeLimit: 100 * 1024,
 			MaxProcesses:  50,
-			BoxDir:        "/var/local/lib/isolate/990/box",
+			BoxDir:        "/var/local/lib/isolate/1/box",
 		}
 
 		if err != nil {
@@ -216,19 +216,19 @@ func TestBuildCommand(t *testing.T) {
 			Title: "Basic",
 			Sandbox: isolate.IsolateSandbox{
 				IsolatePath:   "isolate",
-				BoxId:         990,
+				BoxId:         2,
 				AllowedDirs:   []string{},
 				Filenames:     []string{},
 				FileSizeLimit: 100 * 1024,
 				MaxProcesses:  50,
 			},
-			ExpectedCommand: "isolate -b 990 -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 2 --dir=/etc -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "Limits",
 			Sandbox: isolate.IsolateSandbox{
 				IsolatePath:   "isolate",
-				BoxId:         990,
+				BoxId:         3,
 				AllowedDirs:   []string{},
 				Filenames:     []string{},
 				FileSizeLimit: 100 * 1024,
@@ -237,25 +237,25 @@ func TestBuildCommand(t *testing.T) {
 				WallTimeLimit: 10000,
 				MemoryLimit:   10240,
 			},
-			ExpectedCommand: "isolate -b 990 -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 3 --dir=/etc -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "Allowed Dir",
 			Sandbox: isolate.IsolateSandbox{
 				IsolatePath:   "isolate",
-				BoxId:         990,
+				BoxId:         4,
 				AllowedDirs:   []string{"/usr/bin", "/var"},
 				Filenames:     []string{},
 				FileSizeLimit: 100 * 1024,
 				MaxProcesses:  50,
 			},
-			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 4 --dir=/etc --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "Redirections",
 			Sandbox: isolate.IsolateSandbox{
 				IsolatePath:   "isolate",
-				BoxId:         990,
+				BoxId:         5,
 				AllowedDirs:   []string{},
 				Filenames:     []string{},
 				FileSizeLimit: 100 * 1024,
@@ -267,13 +267,13 @@ func TestBuildCommand(t *testing.T) {
 				StandardErrorFilename:  "1.out.error",
 				MetaFilename:           "1.out.meta",
 			},
-			ExpectedCommand: "isolate -b 990 -e --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 5 --dir=/etc -e --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 		},
 		{
 			Title: "All",
 			Sandbox: isolate.IsolateSandbox{
 				IsolatePath:   "isolate",
-				BoxId:         990,
+				BoxId:         6,
 				AllowedDirs:   []string{"/usr/bin", "/var"},
 				Filenames:     []string{},
 				FileSizeLimit: 100 * 1024,
@@ -288,7 +288,7 @@ func TestBuildCommand(t *testing.T) {
 				StandardErrorFilename:  "1.out.error",
 				MetaFilename:           "1.out.meta",
 			},
-			ExpectedCommand: "isolate -b 990 --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+			ExpectedCommand: "isolate -b 6 --dir=/etc --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 		},
 	}
 
@@ -409,7 +409,7 @@ func TestEndToEnd(t *testing.T) {
 
 	for boxnum, test := range E2ETests {
 		t.Run(fmt.Sprintf("it should be able to %q with expected results", test.Title), func(t *testing.T) {
-			sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", boxnum)
+			sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", boxnum+100)
 			defer sbx.Cleanup()
 
 			if err != nil {

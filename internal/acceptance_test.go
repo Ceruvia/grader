@@ -22,7 +22,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(990, submission)
+		result, _ := internal.GradeSubmission(7, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -54,7 +54,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(990, submission)
+		result, _ := internal.GradeSubmission(8, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -141,7 +141,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(990, submission)
+		result, _ := internal.GradeSubmission(9, submission)
 
 		want := models.GradingResult{
 			Status:    "Compile Error",
@@ -165,7 +165,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(990, submission)
+		result, _ := internal.GradeSubmission(10, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -203,7 +203,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(990, submission)
+		result, _ := internal.GradeSubmission(11, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -237,7 +237,7 @@ func TestGradingJava(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(990, submission)
+		result, _ := internal.GradeSubmission(12, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
