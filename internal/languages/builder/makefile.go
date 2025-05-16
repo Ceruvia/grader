@@ -1,8 +1,8 @@
 package builder
 
 import (
-	"github.com/Ceruvia/grader/internal/command"
-	"github.com/Ceruvia/grader/internal/utils"
+	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/files"
 )
 
 type MakefileBuilder struct{}
@@ -25,5 +25,5 @@ func (b MakefileBuilder) GetExecutionCommand(binaryFilename string) command.Comm
 }
 
 func (b MakefileBuilder) GetExecutableFilename(sourceFilename string) string {
-	return utils.RemoveExtention(sourceFilename)
+	return files.RemoveExtention(sourceFilename)
 }

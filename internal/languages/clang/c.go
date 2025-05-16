@@ -1,8 +1,8 @@
 package clang
 
 import (
-	"github.com/Ceruvia/grader/internal/command"
-	"github.com/Ceruvia/grader/internal/utils"
+	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/files"
 )
 
 type CLanguage struct{}
@@ -29,5 +29,5 @@ func (l CLanguage) GetExecutionCommand(binaryFilename string) command.CommandBui
 }
 
 func (l CLanguage) GetExecutableFilename(sourceFilename string) string {
-	return utils.RemoveExtention(sourceFilename)
+	return files.RemoveExtention(sourceFilename)
 }

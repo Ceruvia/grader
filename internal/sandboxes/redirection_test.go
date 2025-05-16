@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/sandboxes"
-	"github.com/Ceruvia/grader/internal/utils"
 )
 
 func TestSetters(t *testing.T) {
@@ -24,7 +24,7 @@ func TestSetters(t *testing.T) {
 			MetaFilename: "../../tests/copy/source/file.c",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to set standard input file", func(t *testing.T) {
@@ -42,7 +42,7 @@ func TestSetters(t *testing.T) {
 			StandardInputFilename: "file.c",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to set standard output file", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestSetters(t *testing.T) {
 			StandardOutputFilename: "file.c",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to set standard error file", func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestSetters(t *testing.T) {
 			StandardErrorFilename: "file.c",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to reset all redirections", func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestSetters(t *testing.T) {
 
 		want := sandboxes.RedirectionFiles{}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 }
 
@@ -117,7 +117,7 @@ func TestCreation(t *testing.T) {
 			MetaFilename: "../../tests/sandbox/_isolate.meta",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to create and redirect standard input file", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestCreation(t *testing.T) {
 			StandardInputFilename: "input.in",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to create and redirect standard output file", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestCreation(t *testing.T) {
 			StandardOutputFilename: "output.out",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 
 	t.Run("it should be able to create and redirect standard error file", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestCreation(t *testing.T) {
 			StandardErrorFilename: "error.err",
 		}
 
-		utils.AssertDeep(t, red, want)
+		tester.AssertDeep(t, red, want)
 	})
 }
 

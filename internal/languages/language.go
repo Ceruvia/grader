@@ -1,6 +1,14 @@
 package languages
 
-import "github.com/Ceruvia/grader/internal/command"
+import (
+	"errors"
+
+	"github.com/Ceruvia/grader/internal/helper/command"
+)
+
+var (
+	ErrLanguageNotExist = errors.New("Language or builder does not exist.")
+)
 
 type Language interface {
 	GetName() string

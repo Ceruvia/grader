@@ -8,10 +8,10 @@ import (
 	"github.com/Ceruvia/grader/internal/engines"
 	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/factory"
+	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
-	"github.com/Ceruvia/grader/internal/utils"
 )
 
 func TestConstructor(t *testing.T) {
@@ -20,7 +20,7 @@ func TestConstructor(t *testing.T) {
 			Language: "gaada bahasanya abangku",
 		}, evaluator.SimpleEvaluator{})
 
-		if err != languages.ErrLanguageNotExists {
+		if err != languages.ErrLanguageNotExist {
 			t.Errorf("expected LanguageNotExists error but instead got %q", err)
 		}
 	})
@@ -52,7 +52,7 @@ func TestConstructor(t *testing.T) {
 			Evaluator: evaluator.SimpleEvaluator{},
 		}
 
-		utils.AssertDeep(t, engine, want)
+		tester.AssertDeep(t, engine, want)
 	})
 }
 
@@ -93,7 +93,7 @@ func TestRun(t *testing.T) {
 
 		result, err := engine.Run("1.in", "1.out")
 
-		utils.AssertNotError(t, err)
+		tester.AssertNotError(t, err)
 		if result.Verdict != models.VerdictRE || !strings.Contains(result.ErrorMessage, "No such file or directory") {
 			t.Errorf("expected Runtime Error status with File not found error message, instead got %+v", result)
 		}
@@ -140,7 +140,7 @@ func TestRun(t *testing.T) {
 
 		result, err := engine.Run("1.in", "1.out")
 
-		utils.AssertNotError(t, err)
+		tester.AssertNotError(t, err)
 		if result.Verdict != models.VerdictAC {
 			t.Errorf("expected Accepted status, instead got %+v", result)
 		}

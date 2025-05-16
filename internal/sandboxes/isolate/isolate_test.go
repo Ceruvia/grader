@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/command"
+	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
-	"github.com/Ceruvia/grader/internal/utils"
 )
 
 func TestCreateIsolateSandbox(t *testing.T) {
@@ -31,7 +31,7 @@ func TestCreateIsolateSandbox(t *testing.T) {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
 
-		utils.AssertDeep(t, sbx, want)
+		tester.AssertDeep(t, sbx, want)
 	})
 }
 
@@ -51,7 +51,7 @@ func TestAddFile(t *testing.T) {
 		got := sbx.Filenames
 		want := []string{"file.c"}
 
-		utils.AssertDeep(t, got, want)
+		tester.AssertDeep(t, got, want)
 	})
 
 	t.Run("it should copy the file to sbx.Boxdir", func(t *testing.T) {
@@ -98,14 +98,14 @@ func TestContainsFile(t *testing.T) {
 		got := sbx.ContainsFile("iexists.c")
 		want := true
 
-		utils.AssertDeep(t, got, want)
+		tester.AssertDeep(t, got, want)
 	})
 
 	t.Run("it should return False when file doesn't exists in sbx.Filenames", func(t *testing.T) {
 		got := sbx.ContainsFile("idontexists.c")
 		want := false
 
-		utils.AssertDeep(t, got, want)
+		tester.AssertDeep(t, got, want)
 	})
 }
 
@@ -125,7 +125,7 @@ func TestGetFile(t *testing.T) {
 		got := string(data)
 		want := "smth"
 
-		utils.AssertDeep(t, got, want)
+		tester.AssertDeep(t, got, want)
 	})
 
 	t.Run("it should return error when not in sbx.Filenames", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestSetters(t *testing.T) {
 			TimeLimit: 1000,
 		}
 
-		utils.AssertDeep(t, sbx, want)
+		tester.AssertDeep(t, sbx, want)
 	})
 
 	t.Run("it should be able to set wall time limit", func(t *testing.T) {
@@ -188,7 +188,7 @@ func TestSetters(t *testing.T) {
 			WallTimeLimit: 1000,
 		}
 
-		utils.AssertDeep(t, sbx, want)
+		tester.AssertDeep(t, sbx, want)
 	})
 
 	t.Run("it should be able to set memory limit", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestSetters(t *testing.T) {
 			MemoryLimit: 1024000,
 		}
 
-		utils.AssertDeep(t, sbx, want)
+		tester.AssertDeep(t, sbx, want)
 	})
 }
 

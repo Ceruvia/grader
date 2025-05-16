@@ -11,7 +11,6 @@ var (
 	CGradingLanguage    = clang.CLanguage{}
 	JavaGradingLanguage = javalang.JavaLanguage{}
 	MakefileBuilder     = builder.MakefileBuilder{}
-	ELanguageNotExists  = languages.LanguageNotExists{}
 
 	LanguageSimpleton = map[string]languages.Language{
 		CGradingLanguage.GetName():    CGradingLanguage,

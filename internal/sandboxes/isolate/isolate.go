@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Ceruvia/grader/internal/command"
+	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 

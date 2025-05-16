@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/compilers"
+	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/languages/clang"
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
-	"github.com/Ceruvia/grader/internal/utils"
 )
 
 func TestNormalCompiler(t *testing.T) {
@@ -24,11 +24,11 @@ func TestNormalCompiler(t *testing.T) {
 			t.Errorf("expected got no error, but got %q", err)
 		}
 
-		utils.AssertDeep(t, compiler.GetSandbox().GetTimeLimit(), 20*1000)
-		utils.AssertDeep(t, compiler.GetSandbox().GetMemoryLimit(), 1024*1024)
-		utils.AssertDeep(t, compiler.GetRedirections().StandardErrorFilename, compilers.CompilationOutputFilename)
-		utils.AssertDeep(t, compiler.GetRedirections().StandardOutputFilename, compilers.CompilationOutputFilename)
-		utils.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/local/lib/isolate/13/box/"+compilers.CompilationMetaFilename)
+		tester.AssertDeep(t, compiler.GetSandbox().GetTimeLimit(), 20*1000)
+		tester.AssertDeep(t, compiler.GetSandbox().GetMemoryLimit(), 1024*1024)
+		tester.AssertDeep(t, compiler.GetRedirections().StandardErrorFilename, compilers.CompilationOutputFilename)
+		tester.AssertDeep(t, compiler.GetRedirections().StandardOutputFilename, compilers.CompilationOutputFilename)
+		tester.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/local/lib/isolate/13/box/"+compilers.CompilationMetaFilename)
 	})
 
 	t.Run("it should be able to compile a c language", func(t *testing.T) {
@@ -71,6 +71,6 @@ func TestNormalCompiler(t *testing.T) {
 			StdoutStderr:   "",
 		}
 
-		utils.AssertDeep(t, res, want)
+		tester.AssertDeep(t, res, want)
 	})
 }

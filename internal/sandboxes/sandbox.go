@@ -1,7 +1,7 @@
 package sandboxes
 
 import (
-	"github.com/Ceruvia/grader/internal/command"
+	"github.com/Ceruvia/grader/internal/helper/command"
 )
 
 type Sandbox interface {

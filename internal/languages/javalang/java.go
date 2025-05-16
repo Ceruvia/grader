@@ -3,8 +3,9 @@ package javalang
 import (
 	"fmt"
 
-	"github.com/Ceruvia/grader/internal/command"
-	"github.com/Ceruvia/grader/internal/utils"
+	"github.com/Ceruvia/grader/internal/helper"
+	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/files"
 )
 
 type JavaLanguage struct{}
@@ -19,10 +20,10 @@ func (l JavaLanguage) GetAllowedExtention() []string {
 
 func (l JavaLanguage) GetCompilationCommand(mainSourceFilename string, sourceFilenames ...string) command.CommandBuilder {
 	executableFilename := l.GetExecutableFilename(mainSourceFilename)
-	mainClassName := utils.RemoveExtention(mainSourceFilename)
+	mainClassName := files.RemoveExtention(mainSourceFilename)
 
 	javacCommand := *command.GetCommandBuilder("/usr/bin/javac").
-		AddArgs(utils.Map(sourceFilenames, quote)...)
+		AddArgs(helper.Map(sourceFilenames, quote)...)
 
 	jarCommand := *command.GetCommandBuilder("/usr/bin/jar").
 		AddArgs("cfe").
@@ -44,7 +45,7 @@ func (l JavaLanguage) GetExecutionCommand(mainSourceFilename string) command.Com
 }
 
 func (l JavaLanguage) GetExecutableFilename(sourceFilename string) string {
-	return utils.RemoveExtention(sourceFilename) + ".jar"
+	return files.RemoveExtention(sourceFilename) + ".jar"
 }
 
 func quote(filename string) string {
