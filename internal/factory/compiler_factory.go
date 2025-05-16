@@ -1,0 +1,30 @@
+package factory
+
+import (
+	"errors"
+
+	"github.com/Ceruvia/grader/internal/compilers"
+	"github.com/Ceruvia/grader/internal/languages"
+	"github.com/Ceruvia/grader/internal/sandboxes"
+)
+
+type CreateCompilerFunction func(sandboxes.Sandbox, languages.Language) (compilers.Compiler, error)
+
+var (
+	GetFunction = map[string]CreateCompilerFunction{
+		"c":    compilers.PrepareSingleSourceFileCompiler,
+		"Java": compilers.PrepareSingleSourceFileCompiler,
+	}
+)
+
+func CreateCompiler(sandbox sandboxes.Sandbox, language, builder string) (compilers.Compiler, error) {
+	constructor := GetFunction[language]
+	if constructor == nil {
+		return nil, errors.New("Language or builder does not exist!")
+	}
+
+	if builder != "" {
+		return constructor(sandbox, GetLanguage(builder))
+	}
+	return constructor(sandbox, GetLanguage(language))
+}
