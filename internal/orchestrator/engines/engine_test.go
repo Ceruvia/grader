@@ -32,7 +32,7 @@ func TestConstructor(t *testing.T) {
 		submission := models.Submission{
 			Id:            "awjofi92",
 			TempDir:       "/temp/fake",
-			Language:      "c",
+			Language:      "C",
 			TCInputFiles:  []string{"1.in"},
 			TCOutputFiles: []string{"1.out"},
 			Limits: models.GradingLimit{
@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
 			TempDir:            "../../../tests/c_test/hello",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "hello.c",
 			TCInputFiles:       []string{"1.in"},
 			TCOutputFiles:      []string{"1.out"},
@@ -103,7 +103,7 @@ func TestRun(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
 			TempDir:            "../../../tests/c_test/hello_binary",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "hello.c",
 			TCInputFiles:       []string{"1.in"},
 			TCOutputFiles:      []string{"1.out"},

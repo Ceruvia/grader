@@ -12,8 +12,8 @@ type CreateCompilerFunction func(sandboxes.Sandbox, languages.Language) (compile
 
 var (
 	GetFunction = map[string]CreateCompilerFunction{
-		"c":    compilers.PrepareSingleSourceFileCompiler,
-		"Java": compilers.PrepareSingleSourceFileCompiler,
+		CGradingLanguage.GetName():    compilers.PrepareSingleSourceFileCompiler,
+		JavaGradingLanguage.GetName(): compilers.PrepareSingleSourceFileCompiler,
 	}
 )
 

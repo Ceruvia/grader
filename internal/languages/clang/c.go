@@ -8,7 +8,7 @@ import (
 type CLanguage struct{}
 
 func (l CLanguage) GetName() string {
-	return "c"
+	return "C"
 }
 
 func (l CLanguage) GetAllowedExtention() []string {

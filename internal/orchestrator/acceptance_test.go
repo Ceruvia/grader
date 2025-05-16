@@ -12,7 +12,7 @@ func TestGradingC(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
 			TempDir:            "../../tests/c_test/hello",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "hello.c",
 			TCInputFiles:       []string{"1.in"},
 			TCOutputFiles:      []string{"1.out"},
@@ -44,7 +44,7 @@ func TestGradingC(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "dhsai82d",
 			TempDir:            "../../tests/c_test/adt",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "ganjilgenap.c",
 			TCInputFiles:       []string{"1.in", "2.in", "3.in", "4.in", "5.in", "6.in", "7.in", "8.in", "9.in", "10.in"},
 			TCOutputFiles:      []string{"1.out", "2.out", "3.out", "4.out", "5.out", "6.out", "7.out", "8.out", "9.out", "10.out"},
@@ -131,7 +131,7 @@ func TestGradingC(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
 			TempDir:            "../../tests/c_test/uncompileable_singular",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "unfoundfunc.c",
 			TCInputFiles:       []string{"1.in"},
 			TCOutputFiles:      []string{"1.out"},
@@ -155,7 +155,7 @@ func TestGradingC(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
 			TempDir:            "../../tests/c_test/runtimeerror_singular",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "nullpointer.c",
 			TCInputFiles:       []string{"1.in", "2.in"},
 			TCOutputFiles:      []string{"1.out", "2.out"},
@@ -193,7 +193,7 @@ func TestGradingC(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
 			TempDir:            "../../tests/c_test/timelimit_singular",
-			Language:           "c",
+			Language:           "C",
 			MainSourceFilename: "infiniteloop.c",
 			TCInputFiles:       []string{"1.in"},
 			TCOutputFiles:      []string{"1.out"},

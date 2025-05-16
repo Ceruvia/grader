@@ -1,8 +1,6 @@
 package compilers
 
 import (
-	"errors"
-
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
@@ -16,7 +14,7 @@ type SingleSourceFileCompiler struct {
 
 func PrepareSingleSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder languages.Language) (Compiler, error) {
 	if languageOrBuilder == nil {
-		return SingleSourceFileCompiler{}, errors.New("Language or builder does not exist!")
+		return SingleSourceFileCompiler{}, languages.ErrLanguageNotExist
 	}
 
 	compiler := SingleSourceFileCompiler{
