@@ -267,7 +267,7 @@ func TestMakefile(t *testing.T) {
 		submission := models.Submission{
 			Id:            "awjofi92",
 			TempDir:       "../../tests/makefile_test/c_makefile",
-			Language:      "c",
+			Language:      "C",
 			UseBuilder:    true,
 			Builder:       "Makefile",
 			CompileScript: "compile",
