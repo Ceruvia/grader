@@ -10,8 +10,8 @@ type Submission struct {
 	// Builder related stuff (example: Makefile)
 	UseBuilder    bool
 	Builder       string
-	BuildScript   string
 	CompileScript string
+	RunScript     string
 
 	// Non-builder related stuff
 	MainSourceFilename string
