@@ -7,6 +7,7 @@ import (
 
 	"github.com/Ceruvia/grader/internal/engines"
 	"github.com/Ceruvia/grader/internal/evaluator"
+	"github.com/Ceruvia/grader/internal/factory"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
@@ -47,7 +48,7 @@ func TestConstructor(t *testing.T) {
 
 		want := engines.BlackboxGradingEngine{
 			Sandbox:   sbx,
-			Language:  languages.CGradingLanguage,
+			Language:  factory.CGradingLanguage,
 			Evaluator: evaluator.SimpleEvaluator{},
 		}
 

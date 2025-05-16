@@ -2,6 +2,7 @@ package engines
 
 import (
 	"github.com/Ceruvia/grader/internal/evaluator"
+	"github.com/Ceruvia/grader/internal/factory"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/sandboxes"
@@ -15,20 +16,28 @@ type BlackboxGradingEngine struct {
 }
 
 func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission, evaluator evaluator.Evaluator) (BlackboxGradingEngine, error) {
-	language := languages.GetLanguageSimpleton(sub.Language)
+	language := factory.GetLanguage(sub.Language)
 	if language.GetName() == "not exists" {
 		return BlackboxGradingEngine{}, languages.ErrLanguageNotExists
+	}
+	if sub.UseBuilder {
+		language = factory.GetLanguage(sub.Language)
 	}
 
 	sbx.SetTimeLimitInMiliseconds(sub.Limits.TimeInMiliseconds)
 	sbx.SetWallTimeLimitInMiliseconds(sub.Limits.TimeInMiliseconds)
 	sbx.SetMemoryLimitInKilobytes(sub.Limits.MemoryInKilobytes)
 
+	executableFilename := language.GetExecutableFilename(sub.MainSourceFilename)
+	if sub.UseBuilder {
+		executableFilename = sub.RunScript
+	}
+
 	return BlackboxGradingEngine{
 		Sandbox:            sbx,
 		Language:           language,
 		Evaluator:          evaluator,
-		ExecutableFilename: language.GetExecutableFilename(sub.MainSourceFilename),
+		ExecutableFilename: executableFilename,
 	}, nil
 }
 
