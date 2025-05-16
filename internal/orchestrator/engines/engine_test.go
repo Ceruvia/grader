@@ -12,7 +12,6 @@ import (
 	"github.com/Ceruvia/grader/internal/orchestrator/engines"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
-	"github.com/Ceruvia/grader/internal/rochestrator/evaluator"
 )
 
 func TestConstructor(t *testing.T) {
