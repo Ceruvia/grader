@@ -1,21 +1,27 @@
 package compilers
 
 import (
+	"errors"
+
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 type SingleSourceFileCompiler struct {
-	Sandbox      sandboxes.Sandbox
-	Redirections sandboxes.RedirectionFiles
-	Language     languages.Language
+	Sandbox           sandboxes.Sandbox
+	Redirections      sandboxes.RedirectionFiles
+	LanguageOrBuilder languages.Language
 }
 
-func PrepareSingleSourceFileCompiler(sandbox sandboxes.Sandbox, language languages.Language) (SingleSourceFileCompiler, error) {
+func PrepareSingleSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder languages.Language) (Compiler, error) {
+	if languageOrBuilder == nil {
+		return SingleSourceFileCompiler{}, errors.New("Language or builder does not exist!")
+	}
+
 	compiler := SingleSourceFileCompiler{
-		Sandbox:      sandbox,
-		Language:     language,
-		Redirections: sandboxes.CreateRedirectionFiles(sandbox.GetBoxdir()),
+		Sandbox:           sandbox,
+		LanguageOrBuilder: languageOrBuilder,
+		Redirections:      sandboxes.CreateRedirectionFiles(sandbox.GetBoxdir()),
 	}
 
 	compiler.Sandbox.SetTimeLimitInMiliseconds(20 * 1000)   // 20 seconds
@@ -41,7 +47,7 @@ func PrepareSingleSourceFileCompiler(sandbox sandboxes.Sandbox, language languag
 
 // Compiles the source files inside boxdir. Files are assumed to be in boxdir, and will be checked trough sandbox.
 func (c SingleSourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (CompilerResult, error) {
-	compileCommand := c.Language.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
+	compileCommand := c.LanguageOrBuilder.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
 	result, err := c.Sandbox.Execute(compileCommand, c.Redirections)
 	if err != nil {
 		return CompilerResult{
@@ -53,7 +59,7 @@ func (c SingleSourceFileCompiler) Compile(mainSourceFilename string, sourceFilen
 	if result.Status == sandboxes.ZERO_EXIT_CODE {
 		return CompilerResult{
 			IsSuccess:      true,
-			BinaryFilename: c.Language.GetExecutableFilename(mainSourceFilename),
+			BinaryFilename: c.LanguageOrBuilder.GetExecutableFilename(mainSourceFilename),
 		}, nil
 	} else if result.Status == sandboxes.NONZERO_EXIT_CODE {
 		data, err := c.Sandbox.GetFile(CompilationOutputFilename)
@@ -67,3 +73,6 @@ func (c SingleSourceFileCompiler) Compile(mainSourceFilename string, sourceFilen
 		}, nil
 	}
 }
+
+func (c SingleSourceFileCompiler) GetSandbox() sandboxes.Sandbox               { return c.Sandbox }
+func (c SingleSourceFileCompiler) GetRedirections() sandboxes.RedirectionFiles { return c.Redirections }

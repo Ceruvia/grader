@@ -24,11 +24,11 @@ func TestNormalCompiler(t *testing.T) {
 			t.Errorf("expected got no error, but got %q", err)
 		}
 
-		utils.AssertDeep(t, compiler.Sandbox.GetTimeLimit(), 20*1000)
-		utils.AssertDeep(t, compiler.Sandbox.GetMemoryLimit(), 1024*1024)
-		utils.AssertDeep(t, compiler.Redirections.StandardErrorFilename, compilers.CompilationOutputFilename)
-		utils.AssertDeep(t, compiler.Redirections.StandardOutputFilename, compilers.CompilationOutputFilename)
-		utils.AssertDeep(t, compiler.Redirections.MetaFilename, "/var/local/lib/isolate/13/box/"+compilers.CompilationMetaFilename)
+		utils.AssertDeep(t, compiler.GetSandbox().GetTimeLimit(), 20*1000)
+		utils.AssertDeep(t, compiler.GetSandbox().GetMemoryLimit(), 1024*1024)
+		utils.AssertDeep(t, compiler.GetRedirections().StandardErrorFilename, compilers.CompilationOutputFilename)
+		utils.AssertDeep(t, compiler.GetRedirections().StandardOutputFilename, compilers.CompilationOutputFilename)
+		utils.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/local/lib/isolate/13/box/"+compilers.CompilationMetaFilename)
 	})
 
 	t.Run("it should be able to compile a c language", func(t *testing.T) {
