@@ -262,6 +262,46 @@ func TestGradingJava(t *testing.T) {
 	})
 }
 
+func TestGradingPython3(t *testing.T) {
+	t.Run("it should be able to compile, run, and grade a simple Hello, World code", func(t *testing.T) {
+		submission := models.Submission{
+			Id:                 "awjofi92",
+			TempDir:            "../../tests/python3_test/hello",
+			Language:           "Python 3",
+			MainSourceFilename: "hello.py",
+			TCInputFiles:       []string{"1.in", "2.in"},
+			TCOutputFiles:      []string{"1.out", "2.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
+		result, _ := orchestrator.GradeSubmission(212, submission)
+
+		want := models.GradingResult{
+			Status:    "Success",
+			IsSuccess: true,
+			TestcaseGradingResult: []models.EngineRunResult{
+				{
+					Verdict:         models.VerdictAC,
+					HasErrorMessage: false,
+					InputFilename:   "1.in",
+					OutputFilename:  "1.out",
+				},
+				{
+					Verdict:         models.VerdictWA,
+					HasErrorMessage: false,
+					InputFilename:   "2.in",
+					OutputFilename:  "2.out",
+				},
+			},
+		}
+
+		assertGradingResult(t, result, want)
+	})
+}
+
 func TestMakefile(t *testing.T) {
 	t.Run("it should be able to use Makefile with C language", func(t *testing.T) {
 		submission := models.Submission{
