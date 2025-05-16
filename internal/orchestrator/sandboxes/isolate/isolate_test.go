@@ -8,8 +8,8 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/tester"
-	"github.com/Ceruvia/grader/internal/sandboxes"
-	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
 )
 
 func TestCreateIsolateSandbox(t *testing.T) {
@@ -39,10 +39,10 @@ func TestAddFile(t *testing.T) {
 	t.Run("it should add the file to sbx.Filenames", func(t *testing.T) {
 		sbx := isolate.IsolateSandbox{
 			Filenames: []string{},
-			BoxDir:    "../../../tests/copy/dest",
+			BoxDir:    "../../../../tests/copy/dest",
 		}
 
-		err := sbx.AddFile("../../../tests/copy/source/file.c")
+		err := sbx.AddFile("../../../../tests/copy/source/file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
@@ -57,17 +57,17 @@ func TestAddFile(t *testing.T) {
 	t.Run("it should copy the file to sbx.Boxdir", func(t *testing.T) {
 		sbx := isolate.IsolateSandbox{
 			Filenames: []string{},
-			BoxDir:    "../../../tests/copy/dest",
+			BoxDir:    "../../../../tests/copy/dest",
 		}
 
-		err := sbx.AddFile("../../../tests/copy/source/file.c")
-		defer os.Remove("../../../tests/copy/dest/file.c")
+		err := sbx.AddFile("../../../../tests/copy/source/file.c")
+		defer os.Remove("../../../../tests/copy/dest/file.c")
 
 		if err != nil {
 			t.Fatalf("got an error when expecting none: %q", err)
 		}
 
-		if _, err := os.Stat("../../../tests/copy/dest/file.c"); err != nil {
+		if _, err := os.Stat("../../../../tests/copy/dest/file.c"); err != nil {
 			t.Errorf("file was not moved to Boxdir: %q", err)
 		}
 	})
@@ -111,7 +111,7 @@ func TestContainsFile(t *testing.T) {
 
 func TestGetFile(t *testing.T) {
 	sbx := isolate.IsolateSandbox{
-		BoxDir:    "../../../tests/copy/source",
+		BoxDir:    "../../../../tests/copy/source",
 		Filenames: []string{"file.c"},
 	}
 
@@ -319,7 +319,7 @@ func TestEndToEnd(t *testing.T) {
 	}{
 		{
 			Title:                 "Compile hello.c and run",
-			CodeToCompileFilepath: "../../../tests/c_test/hello.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/hello.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 			SecondRunCommand:      *command.GetCommandBuilder("./hello"),
 			ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
@@ -327,7 +327,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile hello.c",
-			CodeToCompileFilepath: "../../../tests/c_test/hello.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/hello.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 			SecondRunCommand:      emptyCommand,
 			ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
@@ -335,7 +335,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile empty.c",
-			CodeToCompileFilepath: "../../../tests/c_test/uncompileable/empty.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/empty.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("empty.c").AddArgs("-o").AddArgs("empty"),
 			SecondRunCommand:      emptyCommand,
 			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -343,7 +343,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile infiniterecursion.c and run",
-			CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/infiniterecursion.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/infiniterecursion.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniterecursion.c").AddArgs("-o").AddArgs("infinite"),
 			SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
 			ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
@@ -351,7 +351,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile noinclude.c",
-			CodeToCompileFilepath: "../../../tests/c_test/uncompileable/noinclude.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/noinclude.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("noinclude.c").AddArgs("-o").AddArgs("noinclude"),
 			SecondRunCommand:      emptyCommand,
 			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -359,7 +359,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile nullpointer.c and run",
-			CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/nullpointer.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/nullpointer.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("nullpointer.c").AddArgs("-o").AddArgs("nullpointer"),
 			SecondRunCommand:      *command.GetCommandBuilder("./nullpointer"),
 			ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
@@ -367,7 +367,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile outofbounds.c and run",
-			CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/outofbounds.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/outofbounds.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("outofbounds.c").AddArgs("-o").AddArgs("outofbounds"),
 			SecondRunCommand:      *command.GetCommandBuilder("./outofbounds"),
 			ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
@@ -375,7 +375,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile syntaxerror.c",
-			CodeToCompileFilepath: "../../../tests/c_test/uncompileable/syntaxerror.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/syntaxerror.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("syntaxerror.c").AddArgs("-o").AddArgs("syntaxerror"),
 			SecondRunCommand:      emptyCommand,
 			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -383,7 +383,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile typemismatch.c",
-			CodeToCompileFilepath: "../../../tests/c_test/uncompileable/typemismatch.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/typemismatch.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("typemismatch.c").AddArgs("-o").AddArgs("typemismatch"),
 			SecondRunCommand:      emptyCommand,
 			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -391,7 +391,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile unfoundfunc.c",
-			CodeToCompileFilepath: "../../../tests/c_test/uncompileable/unfoundfunc.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/unfoundfunc.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("unfoundfunc.c").AddArgs("-o").AddArgs("unfoundfunc"),
 			SecondRunCommand:      emptyCommand,
 			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -399,7 +399,7 @@ func TestEndToEnd(t *testing.T) {
 		},
 		{
 			Title:                 "Compile infiniteloop.c and run",
-			CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/infiniteloop.c",
+			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/infiniteloop.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniteloop.c").AddArgs("-o").AddArgs("infinite"),
 			SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
 			ExpectedStatus:        sandboxes.TIMED_OUT,

@@ -1,11 +1,11 @@
 package engines
 
 import (
-	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/factory"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
-	"github.com/Ceruvia/grader/internal/sandboxes"
+	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
 type BlackboxGradingEngine struct {

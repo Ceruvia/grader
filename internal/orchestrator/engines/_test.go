@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/engines"
-	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/factory"
 	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
-	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
+	"github.com/Ceruvia/grader/internal/orchestrator/engines"
+	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
+	"github.com/Ceruvia/grader/internal/rochestrator/evaluator"
 )
 
 func TestConstructor(t *testing.T) {
@@ -27,7 +28,7 @@ func TestConstructor(t *testing.T) {
 
 	t.Run("it should be able to create a BlackBoxEngine", func(t *testing.T) {
 		sbx := &isolate.IsolateSandbox{
-			BoxDir: "../../tests/not_commited",
+			BoxDir: "../../../tests/not_commited",
 		}
 		submission := models.Submission{
 			Id:            "awjofi92",
@@ -60,7 +61,7 @@ func TestRun(t *testing.T) {
 	t.Run("it should error when the binary file isn't found", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../../tests/c_test/hello",
+			TempDir:            "../../../tests/c_test/hello",
 			Language:           "c",
 			MainSourceFilename: "hello.c",
 			TCInputFiles:       []string{"1.in"},
@@ -102,7 +103,7 @@ func TestRun(t *testing.T) {
 	t.Run("it should be able to run with TC", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../../tests/c_test/hello_binary",
+			TempDir:            "../../../tests/c_test/hello_binary",
 			Language:           "c",
 			MainSourceFilename: "hello.c",
 			TCInputFiles:       []string{"1.in"},

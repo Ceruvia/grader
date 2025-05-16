@@ -1,6 +1,6 @@
 package compilers
 
-import "github.com/Ceruvia/grader/internal/sandboxes"
+import "github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 
 const (
 	CompilationOutputFilename       = "_compile.out"

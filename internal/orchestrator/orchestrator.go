@@ -1,16 +1,16 @@
-package internal
+package orchestrator
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/Ceruvia/grader/internal/engines"
-	"github.com/Ceruvia/grader/internal/evaluator"
 	"github.com/Ceruvia/grader/internal/factory"
 	"github.com/Ceruvia/grader/internal/models"
-	"github.com/Ceruvia/grader/internal/sandboxes"
-	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
+	"github.com/Ceruvia/grader/internal/orchestrator/engines"
+	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
 )
 
 func GradeSubmission(boxId int, submission models.Submission) (models.GradingResult, error) {

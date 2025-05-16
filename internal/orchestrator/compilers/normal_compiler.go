@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/Ceruvia/grader/internal/languages"
-	"github.com/Ceruvia/grader/internal/sandboxes"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
 type SingleSourceFileCompiler struct {

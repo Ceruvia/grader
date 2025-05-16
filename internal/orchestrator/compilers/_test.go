@@ -3,10 +3,10 @@ package compilers_test
 import (
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/compilers"
 	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/languages/clang"
-	"github.com/Ceruvia/grader/internal/sandboxes/isolate"
+	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
 )
 
 func TestNormalCompiler(t *testing.T) {
@@ -39,19 +39,19 @@ func TestNormalCompiler(t *testing.T) {
 		defer sbx.Cleanup()
 
 		// add source files to boxdir
-		err = sbx.AddFile("../../tests/c_test/adt/array.c")
+		err = sbx.AddFile("../../../tests/c_test/adt/array.c")
 		if err != nil {
 			t.Errorf("expected got no error, but got %q", err)
 		}
-		err = sbx.AddFile("../../tests/c_test/adt/array.h")
+		err = sbx.AddFile("../../../tests/c_test/adt/array.h")
 		if err != nil {
 			t.Errorf("expected got no error, but got %q", err)
 		}
-		err = sbx.AddFile("../../tests/c_test/adt/boolean.h")
+		err = sbx.AddFile("../../../tests/c_test/adt/boolean.h")
 		if err != nil {
 			t.Errorf("expected got no error, but got %q", err)
 		}
-		err = sbx.AddFile("../../tests/c_test/adt/ganjilgenap.c")
+		err = sbx.AddFile("../../../tests/c_test/adt/ganjilgenap.c")
 		if err != nil {
 			t.Errorf("expected got no error, but got %q", err)
 		}

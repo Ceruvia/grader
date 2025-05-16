@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/Ceruvia/grader/internal/helper/command"
-	"github.com/Ceruvia/grader/internal/sandboxes"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
 type IsolateSandbox struct {

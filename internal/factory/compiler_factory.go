@@ -3,9 +3,9 @@ package factory
 import (
 	"errors"
 
-	"github.com/Ceruvia/grader/internal/compilers"
 	"github.com/Ceruvia/grader/internal/languages"
-	"github.com/Ceruvia/grader/internal/sandboxes"
+	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
 type CreateCompilerFunction func(sandboxes.Sandbox, languages.Language) (compilers.Compiler, error)

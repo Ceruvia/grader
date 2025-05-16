@@ -1,17 +1,17 @@
-package internal_test
+package orchestrator_test
 
 import (
 	"testing"
 
-	"github.com/Ceruvia/grader/internal"
 	"github.com/Ceruvia/grader/internal/models"
+	"github.com/Ceruvia/grader/internal/orchestrator"
 )
 
 func TestGradingC(t *testing.T) {
 	t.Run("it should be able to compile, run, and grade a simple Hello, World code", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../tests/c_test/hello",
+			TempDir:            "../../tests/c_test/hello",
 			Language:           "c",
 			MainSourceFilename: "hello.c",
 			TCInputFiles:       []string{"1.in"},
@@ -22,7 +22,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(7, submission)
+		result, _ := orchestrator.GradeSubmission(7, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -43,7 +43,7 @@ func TestGradingC(t *testing.T) {
 	t.Run("it should be able to compile, run, and grade an ADT question", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "dhsai82d",
-			TempDir:            "../tests/c_test/adt",
+			TempDir:            "../../tests/c_test/adt",
 			Language:           "c",
 			MainSourceFilename: "ganjilgenap.c",
 			TCInputFiles:       []string{"1.in", "2.in", "3.in", "4.in", "5.in", "6.in", "7.in", "8.in", "9.in", "10.in"},
@@ -54,7 +54,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(8, submission)
+		result, _ := orchestrator.GradeSubmission(8, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -130,7 +130,7 @@ func TestGradingC(t *testing.T) {
 	t.Run("it should return a compile error if file is uncompileable", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../tests/c_test/uncompileable_singular",
+			TempDir:            "../../tests/c_test/uncompileable_singular",
 			Language:           "c",
 			MainSourceFilename: "unfoundfunc.c",
 			TCInputFiles:       []string{"1.in"},
@@ -141,7 +141,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(9, submission)
+		result, _ := orchestrator.GradeSubmission(9, submission)
 
 		want := models.GradingResult{
 			Status:    "Compile Error",
@@ -154,7 +154,7 @@ func TestGradingC(t *testing.T) {
 	t.Run("it should return a RE verdict in one of it verdicts if file has RE", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../tests/c_test/runtimeerror_singular",
+			TempDir:            "../../tests/c_test/runtimeerror_singular",
 			Language:           "c",
 			MainSourceFilename: "nullpointer.c",
 			TCInputFiles:       []string{"1.in", "2.in"},
@@ -165,7 +165,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(10, submission)
+		result, _ := orchestrator.GradeSubmission(10, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -192,7 +192,7 @@ func TestGradingC(t *testing.T) {
 	t.Run("it should return a TLE verdict in one of it verdicts if it exceeds time limit", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../tests/c_test/timelimit_singular",
+			TempDir:            "../../tests/c_test/timelimit_singular",
 			Language:           "c",
 			MainSourceFilename: "infiniteloop.c",
 			TCInputFiles:       []string{"1.in"},
@@ -203,7 +203,7 @@ func TestGradingC(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(11, submission)
+		result, _ := orchestrator.GradeSubmission(11, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -226,7 +226,7 @@ func TestGradingJava(t *testing.T) {
 	t.Run("it should be able to compile, run, and grade a simple Hello, World code", func(t *testing.T) {
 		submission := models.Submission{
 			Id:                 "awjofi92",
-			TempDir:            "../tests/java_test/hello",
+			TempDir:            "../../tests/java_test/hello",
 			Language:           "Java",
 			MainSourceFilename: "HelloWorld.java",
 			TCInputFiles:       []string{"1.in", "2.in"},
@@ -237,7 +237,7 @@ func TestGradingJava(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(12, submission)
+		result, _ := orchestrator.GradeSubmission(12, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -266,7 +266,7 @@ func TestMakefile(t *testing.T) {
 	t.Run("it should be able to use Makefile with C language", func(t *testing.T) {
 		submission := models.Submission{
 			Id:            "awjofi92",
-			TempDir:       "../tests/makefile_test/c_makefile",
+			TempDir:       "../../tests/makefile_test/c_makefile",
 			Language:      "c",
 			UseBuilder:    true,
 			Builder:       "Makefile",
@@ -280,7 +280,7 @@ func TestMakefile(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(201, submission)
+		result, _ := orchestrator.GradeSubmission(201, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
@@ -355,7 +355,7 @@ func TestMakefile(t *testing.T) {
 	t.Run("it should be able to use Makefile with C language", func(t *testing.T) {
 		submission := models.Submission{
 			Id:            "awjofi92",
-			TempDir:       "../tests/makefile_test/java_makefile",
+			TempDir:       "../../tests/makefile_test/java_makefile",
 			Language:      "Java",
 			UseBuilder:    true,
 			Builder:       "Makefile",
@@ -369,7 +369,7 @@ func TestMakefile(t *testing.T) {
 			},
 		}
 
-		result, _ := internal.GradeSubmission(202, submission)
+		result, _ := orchestrator.GradeSubmission(202, submission)
 
 		want := models.GradingResult{
 			Status:    "Success",
