@@ -30,11 +30,12 @@ func TestConstructor(t *testing.T) {
 			BoxDir: "../../../tests/not_commited",
 		}
 		submission := models.Submission{
-			Id:            "awjofi92",
-			TempDir:       "/temp/fake",
-			Language:      "C",
-			TCInputFiles:  []string{"1.in"},
-			TCOutputFiles: []string{"1.out"},
+			Id:                 "awjofi92",
+			TempDir:            "/temp/fake",
+			Language:           "C",
+			MainSourceFilename: "hello.c",
+			TCInputFiles:       []string{"1.in"},
+			TCOutputFiles:      []string{"1.out"},
 			Limits: models.GradingLimit{
 				TimeInMiliseconds: 1000,
 				MemoryInKilobytes: 102400,
@@ -47,9 +48,10 @@ func TestConstructor(t *testing.T) {
 		}
 
 		want := engines.BlackboxGradingEngine{
-			Sandbox:   sbx,
-			Language:  factory.CGradingLanguage,
-			Evaluator: evaluator.SimpleEvaluator{},
+			Sandbox:            sbx,
+			Language:           factory.CGradingLanguage,
+			Evaluator:          evaluator.SimpleEvaluator{},
+			ExecutableFilename: "hello",
 		}
 
 		tester.AssertDeep(t, engine, want)

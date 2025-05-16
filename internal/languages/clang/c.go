@@ -24,8 +24,8 @@ func (l CLanguage) GetCompilationCommand(mainSourceFilename string, sourceFilena
 		AddArgs("-O2").AddArgs("-lm")
 }
 
-func (l CLanguage) GetExecutionCommand(binaryFilename string) command.CommandBuilder {
-	return *command.GetCommandBuilder("./" + binaryFilename)
+func (l CLanguage) GetExecutionCommand(mainSourceFilename string) command.CommandBuilder {
+	return *command.GetCommandBuilder("./" + l.GetExecutableFilename(mainSourceFilename))
 }
 
 func (l CLanguage) GetExecutableFilename(sourceFilename string) string {
