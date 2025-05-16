@@ -19,7 +19,7 @@ func GradeSubmission(boxId int, submission models.Submission) (models.GradingRes
 	language := languages.GetLanguageSimpleton(submission.Language)
 
 	// 1. Create sandbox environment
-	sandbox, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
+	sandbox, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", boxId)
 	if err != nil {
 		return models.GradingResult{
 			Status:       "Internal Error",
