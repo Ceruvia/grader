@@ -6,5 +6,5 @@ import (
 )
 
 type Evaluator interface {
-	Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.SandboxExecutionResult, expectedOutputFilenameInBox, actualOutputFilenameInBox string) (models.EngineRunResult, error)
+	Evaluate(sbx sandboxes.Sandbox, execResult models.SandboxExecutionResult, expectedOutputFilenameInBox, actualOutputFilenameInBox string) (models.EngineRunResult, error)
 }

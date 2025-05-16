@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
@@ -173,7 +174,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	return sandboxedCommand
 }
 
-func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) (sandboxes.SandboxExecutionResult, error) {
+func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) (models.SandboxExecutionResult, error) {
 	command := s.BuildCommand(runCommand, redirectionFiles)
 
 	cmd := exec.Command(command.Program, command.Args...)
@@ -182,8 +183,8 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 	exitError, ok := err.(*exec.ExitError)
 
 	if exitError != nil && !ok {
-		return sandboxes.SandboxExecutionResult{
-			Status:   sandboxes.INTERNAL_ERROR,
+		return models.SandboxExecutionResult{
+			Status:   models.INTERNAL_ERROR,
 			ExitCode: exitError.ExitCode(),
 			Time:     -1,
 			Memory:   -1,
@@ -193,8 +194,8 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 
 	res, err := sandboxes.ParseMetaResult(redirectionFiles.MetaFilename)
 	if err != nil {
-		return sandboxes.SandboxExecutionResult{
-			Status:  sandboxes.PARSING_META_ERROR,
+		return models.SandboxExecutionResult{
+			Status:  models.PARSING_META_ERROR,
 			Time:    -1,
 			Memory:  -1,
 			Message: err.Error(),

@@ -5,47 +5,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/Ceruvia/grader/internal/models"
 )
 
-type SandboxExecutionResult struct {
-	Status     SandboxExecutionStatus
-	ExitSignal int
-	ExitCode   int
-	Time       float64
-	WallTime   float64
-	Memory     int
-	Message    string
-	IsKilled   bool
-}
-
-type SandboxExecutionStatus int
-
-const (
-	ZERO_EXIT_CODE SandboxExecutionStatus = iota
-	NONZERO_EXIT_CODE
-	KILLED_ON_SIGNAL
-	TIMED_OUT
-	INTERNAL_ERROR
-	PARSING_META_ERROR
-)
-
-var sandboxExecutionStatusNames = map[SandboxExecutionStatus]string{
-	ZERO_EXIT_CODE:     "Success",
-	NONZERO_EXIT_CODE:  "Runtime error",
-	KILLED_ON_SIGNAL:   "Killed on signal",
-	TIMED_OUT:          "Time limit exceeded",
-	INTERNAL_ERROR:     "Isolate internal error",
-	PARSING_META_ERROR: "Failed to parse meta file",
-}
-
-func (s SandboxExecutionStatus) String() string {
-	return sandboxExecutionStatusNames[s]
-}
-
-func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
+func ParseMetaResult(metaFilePath string) (models.SandboxExecutionResult, error) {
 	file, err := os.Open(metaFilePath)
 	if err != nil {
-		return SandboxExecutionResult{}, err
+		return models.SandboxExecutionResult{}, err
 	}
 	defer file.Close()
 
@@ -66,7 +33,7 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return SandboxExecutionResult{}, err
+		return models.SandboxExecutionResult{}, err
 	}
 
 	time, _ := strconv.ParseFloat(result["time"], 64)
@@ -79,18 +46,18 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 
 	isKilledParsed := result["killed"]
 
-	status := ZERO_EXIT_CODE
+	status := models.ZERO_EXIT_CODE
 	switch statusParsed {
 	case "RE":
-		status = NONZERO_EXIT_CODE
+		status = models.NONZERO_EXIT_CODE
 	case "SG":
-		status = KILLED_ON_SIGNAL
+		status = models.KILLED_ON_SIGNAL
 	case "TO":
-		status = TIMED_OUT
+		status = models.TIMED_OUT
 	case "XX":
-		status = INTERNAL_ERROR
+		status = models.INTERNAL_ERROR
 	default:
-		status = ZERO_EXIT_CODE
+		status = models.ZERO_EXIT_CODE
 	}
 
 	isKilled := false
@@ -98,7 +65,7 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 		isKilled = true
 	}
 
-	return SandboxExecutionResult{
+	return models.SandboxExecutionResult{
 		Time:       time * 1000,
 		WallTime:   wallTime * 1000,
 		Memory:     memory,

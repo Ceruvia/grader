@@ -8,6 +8,7 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/tester"
+	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
 )
@@ -314,7 +315,7 @@ func TestEndToEnd(t *testing.T) {
 		CodeToCompileFilepath string
 		RunCommand            command.CommandBuilder
 		SecondRunCommand      command.CommandBuilder
-		ExpectedStatus        sandboxes.SandboxExecutionStatus
+		ExpectedStatus        models.SandboxExecutionStatus
 		ExpectedMessage       string
 	}{
 		{
@@ -322,7 +323,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/hello.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 			SecondRunCommand:      *command.GetCommandBuilder("./hello"),
-			ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
+			ExpectedStatus:        models.ZERO_EXIT_CODE,
 			ExpectedMessage:       "",
 		},
 		{
@@ -330,7 +331,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/hello.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 			SecondRunCommand:      emptyCommand,
-			ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
+			ExpectedStatus:        models.ZERO_EXIT_CODE,
 			ExpectedMessage:       "",
 		},
 		{
@@ -338,7 +339,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/empty.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("empty.c").AddArgs("-o").AddArgs("empty"),
 			SecondRunCommand:      emptyCommand,
-			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
+			ExpectedStatus:        models.NONZERO_EXIT_CODE,
 			ExpectedMessage:       "Exited with error status 1",
 		},
 		{
@@ -346,7 +347,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/infiniterecursion.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniterecursion.c").AddArgs("-o").AddArgs("infinite"),
 			SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
-			ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
+			ExpectedStatus:        models.KILLED_ON_SIGNAL,
 			ExpectedMessage:       "Caught fatal signal 9",
 		},
 		{
@@ -354,7 +355,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/noinclude.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("noinclude.c").AddArgs("-o").AddArgs("noinclude"),
 			SecondRunCommand:      emptyCommand,
-			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
+			ExpectedStatus:        models.NONZERO_EXIT_CODE,
 			ExpectedMessage:       "Exited with error status 1",
 		},
 		{
@@ -362,7 +363,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/nullpointer.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("nullpointer.c").AddArgs("-o").AddArgs("nullpointer"),
 			SecondRunCommand:      *command.GetCommandBuilder("./nullpointer"),
-			ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
+			ExpectedStatus:        models.KILLED_ON_SIGNAL,
 			ExpectedMessage:       "Caught fatal signal 11",
 		},
 		{
@@ -370,7 +371,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/outofbounds.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("outofbounds.c").AddArgs("-o").AddArgs("outofbounds"),
 			SecondRunCommand:      *command.GetCommandBuilder("./outofbounds"),
-			ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
+			ExpectedStatus:        models.KILLED_ON_SIGNAL,
 			ExpectedMessage:       "Caught fatal signal 6",
 		},
 		{
@@ -378,7 +379,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/syntaxerror.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("syntaxerror.c").AddArgs("-o").AddArgs("syntaxerror"),
 			SecondRunCommand:      emptyCommand,
-			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
+			ExpectedStatus:        models.NONZERO_EXIT_CODE,
 			ExpectedMessage:       "Exited with error status 1",
 		},
 		{
@@ -386,7 +387,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/typemismatch.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("typemismatch.c").AddArgs("-o").AddArgs("typemismatch"),
 			SecondRunCommand:      emptyCommand,
-			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
+			ExpectedStatus:        models.NONZERO_EXIT_CODE,
 			ExpectedMessage:       "Exited with error status 1",
 		},
 		{
@@ -394,7 +395,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/uncompileable/unfoundfunc.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("unfoundfunc.c").AddArgs("-o").AddArgs("unfoundfunc"),
 			SecondRunCommand:      emptyCommand,
-			ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
+			ExpectedStatus:        models.NONZERO_EXIT_CODE,
 			ExpectedMessage:       "Exited with error status 1",
 		},
 		{
@@ -402,7 +403,7 @@ func TestEndToEnd(t *testing.T) {
 			CodeToCompileFilepath: "../../../../tests/c_test/runtimeerror/infiniteloop.c",
 			RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniteloop.c").AddArgs("-o").AddArgs("infinite"),
 			SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
-			ExpectedStatus:        sandboxes.TIMED_OUT,
+			ExpectedStatus:        models.TIMED_OUT,
 			ExpectedMessage:       "Time limit exceeded (wall clock)",
 		},
 	}

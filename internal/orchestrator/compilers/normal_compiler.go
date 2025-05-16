@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/Ceruvia/grader/internal/languages"
+	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
@@ -46,29 +47,29 @@ func PrepareSingleSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilde
 }
 
 // Compiles the source files inside boxdir. Files are assumed to be in boxdir, and will be checked trough sandbox.
-func (c SingleSourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (CompilerResult, error) {
+func (c SingleSourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (models.CompilerResult, error) {
 	compileCommand := c.LanguageOrBuilder.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
 	result, err := c.Sandbox.Execute(compileCommand, c.Redirections)
 	if err != nil {
-		return CompilerResult{
+		return models.CompilerResult{
 			IsSuccess:    false,
 			StdoutStderr: err.Error(),
 		}, err
 	}
 
-	if result.Status == sandboxes.ZERO_EXIT_CODE {
-		return CompilerResult{
+	if result.Status == models.ZERO_EXIT_CODE {
+		return models.CompilerResult{
 			IsSuccess:      true,
 			BinaryFilename: c.LanguageOrBuilder.GetExecutableFilename(mainSourceFilename),
 		}, nil
-	} else if result.Status == sandboxes.NONZERO_EXIT_CODE {
+	} else if result.Status == models.NONZERO_EXIT_CODE {
 		data, err := c.Sandbox.GetFile(CompilationOutputFilename)
-		return CompilerResult{
+		return models.CompilerResult{
 			IsSuccess:    false,
 			StdoutStderr: string(data),
 		}, err
 	} else {
-		return CompilerResult{
+		return models.CompilerResult{
 			IsSuccess: false,
 		}, nil
 	}

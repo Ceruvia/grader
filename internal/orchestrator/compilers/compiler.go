@@ -1,6 +1,9 @@
 package compilers
 
-import "github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+import (
+	"github.com/Ceruvia/grader/internal/models"
+	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+)
 
 const (
 	CompilationOutputFilename       = "_compile.out"
@@ -11,5 +14,5 @@ const (
 type Compiler interface {
 	GetSandbox() sandboxes.Sandbox
 	GetRedirections() sandboxes.RedirectionFiles
-	Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (CompilerResult, error)
+	Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) (models.CompilerResult, error)
 }

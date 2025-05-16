@@ -5,6 +5,7 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/languages/clang"
+	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
 )
@@ -65,7 +66,7 @@ func TestNormalCompiler(t *testing.T) {
 
 		res, err := compiler.Compile("ganjilgenap.c", []string{"ganjilgenap.c", "array.c"})
 
-		want := compilers.CompilerResult{
+		want := models.CompilerResult{
 			IsSuccess:      true,
 			BinaryFilename: "ganjilgenap",
 			StdoutStderr:   "",

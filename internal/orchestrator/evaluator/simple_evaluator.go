@@ -10,18 +10,18 @@ import (
 
 type SimpleEvaluator struct{}
 
-func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.SandboxExecutionResult, expectedOutputFilenameInBox, actualOutputFilenameInBox string) (models.EngineRunResult, error) {
+func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult models.SandboxExecutionResult, expectedOutputFilenameInBox, actualOutputFilenameInBox string) (models.EngineRunResult, error) {
 	intermediateVerdict := models.VerdictWA
 	switch execResult.Status {
-	case sandboxes.NONZERO_EXIT_CODE:
+	case models.NONZERO_EXIT_CODE:
 		intermediateVerdict = models.VerdictRE
-	case sandboxes.KILLED_ON_SIGNAL:
+	case models.KILLED_ON_SIGNAL:
 		intermediateVerdict = models.VerdictRE
-	case sandboxes.TIMED_OUT:
+	case models.TIMED_OUT:
 		intermediateVerdict = models.VerdictTLE
-	case sandboxes.INTERNAL_ERROR:
+	case models.INTERNAL_ERROR:
 		intermediateVerdict = models.VerdictXX
-	case sandboxes.PARSING_META_ERROR:
+	case models.PARSING_META_ERROR:
 		intermediateVerdict = models.VerdictXX
 	}
 	actualOutput, err := sbx.GetFile(actualOutputFilenameInBox)

@@ -2,6 +2,7 @@ package sandboxes
 
 import (
 	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/models"
 )
 
 type Sandbox interface {
@@ -25,7 +26,7 @@ type Sandbox interface {
 	SetMemoryLimitInKilobytes(memoryInKilobytes int)
 
 	BuildCommand(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) *command.CommandBuilder
-	Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) (SandboxExecutionResult, error)
+	Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) (models.SandboxExecutionResult, error)
 
 	Cleanup() error
 }
