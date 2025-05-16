@@ -57,19 +57,20 @@ func TestConstructor(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	submission := models.Submission{
-		Id:                 "awjofi92",
-		TempDir:            "../../tests/c_test/hello",
-		Language:           "c",
-		MainSourceFilename: "hello.c",
-		TCInputFiles:       []string{"1.in"},
-		TCOutputFiles:      []string{"1.out"},
-		Limits: models.GradingLimit{
-			TimeInMiliseconds: 1000,
-			MemoryInKilobytes: 102400,
-		},
-	}
 	t.Run("it should error when the binary file isn't found", func(t *testing.T) {
+		submission := models.Submission{
+			Id:                 "awjofi92",
+			TempDir:            "../../tests/c_test/hello",
+			Language:           "c",
+			MainSourceFilename: "hello.c",
+			TCInputFiles:       []string{"1.in"},
+			TCOutputFiles:      []string{"1.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
 		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 15)
 		if err != nil {
 			t.Fatal(err)
@@ -99,6 +100,19 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("it should be able to run with TC", func(t *testing.T) {
+		submission := models.Submission{
+			Id:                 "awjofi92",
+			TempDir:            "../../tests/c_test/hello_binary",
+			Language:           "c",
+			MainSourceFilename: "hello.c",
+			TCInputFiles:       []string{"1.in"},
+			TCOutputFiles:      []string{"1.out"},
+			Limits: models.GradingLimit{
+				TimeInMiliseconds: 1000,
+				MemoryInKilobytes: 102400,
+			},
+		}
+
 		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
 		if err != nil {
 			t.Fatal(err)

@@ -17,7 +17,7 @@ type BlackboxGradingEngine struct {
 
 func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, sub models.Submission, evaluator evaluator.Evaluator) (BlackboxGradingEngine, error) {
 	language := factory.GetLanguage(sub.Language)
-	if language.GetName() == "not exists" {
+	if language == nil {
 		return BlackboxGradingEngine{}, languages.ErrLanguageNotExists
 	}
 	if sub.UseBuilder {
