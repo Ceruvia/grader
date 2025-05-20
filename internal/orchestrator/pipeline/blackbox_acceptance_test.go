@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	DEBUG = false
+	DEBUG = true
 
-	ISOLATE_PATH              = "/usr/local/bin/isolate"
-	C_TEST_ID_PREFIX          = 900
-	C_MAKEFILE_TEST_ID_PREFIX = 910
+	ISOLATE_PATH                 = "/usr/local/bin/isolate"
+	C_TEST_ID_PREFIX             = 900
+	C_MAKEFILE_TEST_ID_PREFIX    = 910
+	JAVA_TEST_ID_PREFIX          = 920
+	JAVA_MAKEFILE_TEST_ID_PREFIX = 930
 )
 
 func TestGradingC(t *testing.T) {
@@ -104,6 +106,7 @@ func TestGradingC(t *testing.T) {
 
 	for i, test := range GradingTests {
 		t.Run(test.Title, func(t *testing.T) {
+			t.Parallel()
 			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, C_TEST_ID_PREFIX+i)
 
 			if err != nil {
@@ -192,6 +195,7 @@ func TestGradingCWithMakefile(t *testing.T) {
 
 	for i, test := range GradingTests {
 		t.Run(test.Title, func(t *testing.T) {
+			t.Parallel()
 			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, C_MAKEFILE_TEST_ID_PREFIX+i)
 
 			if err != nil {
@@ -214,9 +218,151 @@ func TestGradingCWithMakefile(t *testing.T) {
 	}
 }
 
-// func TestGradingJava(t *testing.T) {
+func TestGradingJava(t *testing.T) {
+	createJavaSubmission := func(mainSourceFilename string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
+		return models.SubmissionWithFiles{
+			Core: models.Core{
+				Language:  "Java",
+				Limits:    createLimits(timeInMilisecond, memoryInKilobyte),
+				Testcases: createTestcases(numOfTestcase),
+			},
+			MainSourceFilename: mainSourceFilename,
+		}
+	}
 
-// }
+	GradingTests := []struct {
+		Title           string
+		Submisison      models.Submission
+		OriginalFileDir string
+		ExpectedResult  evaluator.GradingResult
+	}{
+		{
+			Title:           "Success_Hello World",
+			Submisison:      createJavaSubmission("HelloWorld.java", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/scs_hello",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
+		},
+		{
+			Title:           "Success_Balala",
+			Submisison:      createJavaSubmission("Main.java", 20, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/scs_balala",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "WA", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "WA", "WA", "AC", "WA", "AC", "WA", "AC", "AC", "AC", "WA"}),
+		},
+		{
+			Title:           "Success_Ngabuburit",
+			Submisison:      createJavaSubmission("Main.java", 25, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/scs_mult_ngabuburit",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Success_Concurrency",
+			Submisison:      createJavaSubmission("Main.java", 5, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/srs_concurrency",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "WA", "AC"}),
+		},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			t.Parallel()
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, JAVA_TEST_ID_PREFIX+i)
+
+			if err != nil {
+				tester.AssertNotError(t, err)
+			}
+			if DEBUG {
+				fmt.Println(sbx.BoxDir)
+			} else {
+				defer sbx.Cleanup()
+			}
+
+			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+				t.Fatal(err)
+			}
+
+			res := pipeline.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			assertGradingResult(t, res, test.ExpectedResult)
+		})
+	}
+}
+
+func TestGradingJavaWithMakefile(t *testing.T) {
+	createJavaWithMakefileSubmission := func(compileScript, runScript string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
+		return models.SubmissionWithBuilder{
+			Core: models.Core{
+				Language:  "Java",
+				Limits:    createLimits(timeInMilisecond, memoryInKilobyte),
+				Testcases: createTestcases(numOfTestcase),
+			},
+			Builder:       "Makefile",
+			CompileScript: compileScript,
+			RunScript:     runScript,
+		}
+	}
+
+	GradingTests := []struct {
+		Title           string
+		Submisison      models.Submission
+		OriginalFileDir string
+		ExpectedResult  evaluator.GradingResult
+	}{
+		// {
+		// 	Title:           "Success_Hello World",
+		// 	Submisison:      createJavaWithMakefileSubmission("HelloWorld.class", "HelloWorld", 2, 1000, 1024),
+		// 	OriginalFileDir: "../../../tests/java_test/scs_hello",
+		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
+		// },
+		// {
+		// 	Title:           "Success_Balala",
+		// 	Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 20, 1000, 1024),
+		// 	OriginalFileDir: "../../../tests/java_test/scs_balala",
+		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "WA", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "WA", "WA", "AC", "WA", "AC", "WA", "AC", "AC", "AC", "WA"}),
+		// },
+		// {
+		// 	Title:           "Success_Ngabuburit",
+		// 	Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 25, 1000, 1024),
+		// 	OriginalFileDir: "../../../tests/java_test/scs_mult_ngabuburit",
+		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		// },
+		// {
+		// 	Title:           "Success_Concurrency",
+		// 	Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 5, 1000, 1024),
+		// 	OriginalFileDir: "../../../tests/java_test/srs_concurrency",
+		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "WA", "AC"}),
+		// },
+		{
+			Title:           "Success",
+			Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 5, 1000, 102400),
+			OriginalFileDir: "../../../tests/makefile_test/java_makefile",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC"}),
+		},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			t.Parallel()
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, JAVA_MAKEFILE_TEST_ID_PREFIX+i)
+
+			if err != nil {
+				tester.AssertNotError(t, err)
+			}
+			if DEBUG {
+				fmt.Println(sbx.BoxDir)
+			} else {
+				defer sbx.Cleanup()
+			}
+
+			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+				t.Fatal(err)
+			}
+
+			res := pipeline.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			assertGradingResult(t, res, test.ExpectedResult)
+		})
+	}
+}
 
 func assertGradingResult(t testing.TB, got, want evaluator.GradingResult) {
 	t.Helper()
