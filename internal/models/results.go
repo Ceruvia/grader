@@ -3,11 +3,7 @@ package models
 // Sandbox execution results
 
 // Compiler compilation execution results
-type CompilerResult struct {
-	IsSuccess      bool
-	BinaryFilename string
-	StdoutStderr   string
-}
+
 
 // Engine grading results
 type EngineRunResult struct {
