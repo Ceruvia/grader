@@ -8,6 +8,7 @@ import (
 
 var (
 	ErrFilenameNotInBox = errors.New("Filename not found in box!")
+	ErrSandboxIsNil = errors.New("Sandbox is a null pointer!")
 )
 
 type Sandbox interface {
