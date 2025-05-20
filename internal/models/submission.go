@@ -10,7 +10,7 @@ type Submission interface {
 	GetId() string
 	GetEngine() string
 	GetLanguage() languages.Language
-	GetExecLanguage() languages.Language
+	GetCompileLanguage() languages.Language
 	GetLimits() GradingLimit
 	GetTestcases() []Testcase
 
@@ -31,7 +31,7 @@ func (s SubmissionWithBuilder) GetEngine() string { return s.Core.Engine }
 func (s SubmissionWithBuilder) GetLanguage() languages.Language {
 	return languages.GetLanguage(s.Core.Language)
 }
-func (s SubmissionWithBuilder) GetExecLanguage() languages.Language {
+func (s SubmissionWithBuilder) GetCompileLanguage() languages.Language {
 	return languages.GetLanguage(s.Builder)
 }
 func (s SubmissionWithBuilder) GetLimits() GradingLimit            { return s.Core.Limits }
@@ -50,7 +50,7 @@ func (s SubmissionWithFiles) GetEngine() string { return s.Core.Engine }
 func (s SubmissionWithFiles) GetLanguage() languages.Language {
 	return languages.GetLanguage(s.Core.Language)
 }
-func (s SubmissionWithFiles) GetExecLanguage() languages.Language {
+func (s SubmissionWithFiles) GetCompileLanguage() languages.Language {
 	return languages.GetLanguage(s.Core.Language)
 }
 func (s SubmissionWithFiles) GetLimits() GradingLimit  { return s.Core.Limits }

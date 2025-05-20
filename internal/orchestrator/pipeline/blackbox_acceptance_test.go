@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	DEBUG = true
+	DEBUG = false
 
 	ISOLATE_PATH                 = "/usr/local/bin/isolate"
 	C_TEST_ID_PREFIX             = 900
@@ -307,30 +307,24 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 		OriginalFileDir string
 		ExpectedResult  evaluator.GradingResult
 	}{
-		// {
-		// 	Title:           "Success_Hello World",
-		// 	Submisison:      createJavaWithMakefileSubmission("HelloWorld.class", "HelloWorld", 2, 1000, 1024),
-		// 	OriginalFileDir: "../../../tests/java_test/scs_hello",
-		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
-		// },
-		// {
-		// 	Title:           "Success_Balala",
-		// 	Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 20, 1000, 1024),
-		// 	OriginalFileDir: "../../../tests/java_test/scs_balala",
-		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "WA", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "WA", "WA", "AC", "WA", "AC", "WA", "AC", "AC", "AC", "WA"}),
-		// },
-		// {
-		// 	Title:           "Success_Ngabuburit",
-		// 	Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 25, 1000, 1024),
-		// 	OriginalFileDir: "../../../tests/java_test/scs_mult_ngabuburit",
-		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
-		// },
-		// {
-		// 	Title:           "Success_Concurrency",
-		// 	Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 5, 1000, 1024),
-		// 	OriginalFileDir: "../../../tests/java_test/srs_concurrency",
-		// 	ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "WA", "AC"}),
-		// },
+		{
+			Title:           "Success_Balala",
+			Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 20, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/scs_balala",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "WA", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "WA", "WA", "AC", "WA", "AC", "WA", "AC", "AC", "AC", "WA"}),
+		},
+		{
+			Title:           "Success_Ngabuburit",
+			Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 25, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/scs_mult_ngabuburit",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Success_Concurrency",
+			Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 5, 1000, 1024),
+			OriginalFileDir: "../../../tests/java_test/srs_concurrency",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "WA", "AC"}),
+		},
 		{
 			Title:           "Success",
 			Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 5, 1000, 102400),

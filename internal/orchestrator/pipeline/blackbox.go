@@ -17,10 +17,9 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 	}
 
 	/* Create language, compiler and engine */
-	languageOrBuilder := submission.GetExecLanguage()
 	engine, err := engines.CreateBlackboxGradingEngine(
 		sandbox,
-		languageOrBuilder,
+		submission.GetLanguage(),
 		submission.GetLimits(),
 		evaluator.SimpleEvaluator{},
 		submission.GetExecFilenameOrScript(),
@@ -28,7 +27,7 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 	if err != nil {
 		return createFailGradingResult("Internal error", err.Error())
 	}
-	compiler, err := compilers.PrepareSourceFileCompiler(sandbox, languageOrBuilder)
+	compiler, err := compilers.PrepareSourceFileCompiler(sandbox, submission.GetCompileLanguage())
 	if err != nil {
 		return createFailGradingResult("Internal error", err.Error())
 	}
