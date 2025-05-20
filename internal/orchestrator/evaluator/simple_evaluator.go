@@ -49,7 +49,10 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 	}
 
 	finalVerdict := models.VerdictXX
-	if bytes.Equal(actualOutput, expectedOutput) {
+	if bytes.Equal(
+		normalizeNewLines(actualOutput),
+		normalizeNewLines(expectedOutput),
+	) {
 		finalVerdict = models.VerdictAC
 	} else {
 		finalVerdict = models.VerdictWA
@@ -61,4 +64,8 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 		MemoryUsedInKilobytes:  execResult.Memory,
 		HasErrorMessage:        false,
 	}
+}
+
+func normalizeNewLines(b []byte) []byte {
+	return bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
 }
