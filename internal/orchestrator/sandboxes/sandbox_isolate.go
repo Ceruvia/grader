@@ -1,9 +1,8 @@
-package isolate
+package sandboxes
 
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"slices"
@@ -11,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/files"
 	"github.com/Ceruvia/grader/internal/models"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
 type IsolateSandbox struct {
@@ -30,7 +29,7 @@ type IsolateSandbox struct {
 	MaxProcesses  int
 }
 
-func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error) {
+func CreateIsolateSandbox(isolatePath string, boxId int) (*IsolateSandbox, error) {
 	isolate := IsolateSandbox{
 		IsolatePath:   isolatePath,
 		BoxId:         boxId,
@@ -40,12 +39,11 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (IsolateSandbox, error)
 		MaxProcesses:  50,         // defaults to 50 processes
 	}
 
-	err := isolate.initSandbox()
-	if err != nil {
-		return IsolateSandbox{}, err
+	if err := isolate.initSandbox(); err != nil {
+		return nil, err
 	}
 
-	return isolate, nil
+	return &isolate, nil
 }
 
 func (s *IsolateSandbox) GetBoxdir() string           { return s.BoxDir }
@@ -58,18 +56,24 @@ func (s *IsolateSandbox) GetMaxProcesses() int        { return s.MaxProcesses }
 func (s *IsolateSandbox) GetFilenamesInBox() []string { return s.Filenames }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
-	err := s.MoveFileToBox(filepath)
-
-	if err != nil {
+	if err := s.MoveFileToBox(filepath); err != nil {
 		return err
 	}
 
-	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
+	s.addFileToFilenames(filepath)
 	return nil
 }
 
+func (s *IsolateSandbox) AddFileWithoutMove(filepath string) {
+	s.addFileToFilenames(filepath)
+}
+
+func (s *IsolateSandbox) addFileToFilenames(filepath string) {
+	s.Filenames = append(s.Filenames, parseFilenameFromPath(filepath))
+}
+
 func (s *IsolateSandbox) MoveFileToBox(filepath string) error {
-	_, err := copy(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))
+	_, err := files.CopyFile(filepath, s.BoxDir+"/"+parseFilenameFromPath(filepath))
 	return err
 }
 
@@ -78,16 +82,12 @@ func (s *IsolateSandbox) ContainsFile(filename string) bool {
 }
 
 func (s *IsolateSandbox) GetFile(filename string) ([]byte, error) {
-	// TODO: maybe custom error when file is not in s.Filenames
-	// TODO: maybe balikin []byte aja ketimbang fs.File
-
-	data, err := os.ReadFile(appendBoxdir(s.BoxDir, filename))
-
-	if err != nil {
-		return nil, err
+	if !s.ContainsFile(filename) {
+		return nil, ErrFilenameNotInBox
 	}
 
-	return data, nil
+	data, err := os.ReadFile(appendBoxdir(s.BoxDir, filename))
+	return data, err
 }
 
 func (s *IsolateSandbox) AddAllowedDirectory(dirpath string) error {
@@ -112,7 +112,7 @@ func (s *IsolateSandbox) SetMemoryLimitInKilobytes(memoryInKilobytes int) {
 	s.MemoryLimit = memoryInKilobytes
 }
 
-func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) *command.CommandBuilder {
+func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) *command.CommandBuilder {
 	sandboxedCommand := command.GetCommandBuilder(s.IsolatePath)
 	sandboxedCommand.AddArgs("-b " + strconv.Itoa(s.BoxId))
 
@@ -174,7 +174,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	return sandboxedCommand
 }
 
-func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles sandboxes.RedirectionFiles) (models.SandboxExecutionResult, error) {
+func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) (models.SandboxExecutionResult, error) {
 	command := s.BuildCommand(runCommand, redirectionFiles)
 
 	cmd := exec.Command(command.Program, command.Args...)
@@ -192,7 +192,7 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 		}, exitError
 	}
 
-	res, err := sandboxes.ParseMetaResult(redirectionFiles.MetaFilename)
+	res, err := ParseMetaResult(redirectionFiles.MetaFilename)
 	if err != nil {
 		return models.SandboxExecutionResult{
 			Status:  models.PARSING_META_ERROR,
@@ -255,29 +255,4 @@ func parseFilenameFromPath(filepath string) string {
 
 func appendBoxdir(boxdir, filename string) string {
 	return boxdir + "/" + filename
-}
-
-func copy(src, dst string) (int64, error) {
-	sourceFileStat, err := os.Stat(src)
-	if err != nil {
-		return 0, err
-	}
-
-	if !sourceFileStat.Mode().IsRegular() {
-		return 0, fmt.Errorf("%s is not a regular file", src)
-	}
-
-	source, err := os.Open(src)
-	if err != nil {
-		return 0, err
-	}
-	defer source.Close()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return 0, err
-	}
-	defer destination.Close()
-	nBytes, err := io.Copy(destination, source)
-	return nBytes, err
 }

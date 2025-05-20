@@ -1,8 +1,14 @@
 package sandboxes
 
 import (
+	"errors"
+
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/models"
+)
+
+var (
+	ErrFilenameNotInBox = errors.New("Filename not found in box!")
 )
 
 type Sandbox interface {
@@ -15,8 +21,9 @@ type Sandbox interface {
 	GetMaxProcesses() int
 	GetFilenamesInBox() []string
 
-	MoveFileToBox(filepath string) error
 	AddFile(filepath string) error
+	AddFileWithoutMove(filepath string)
+	MoveFileToBox(filepath string) error
 	ContainsFile(filepath string) bool
 	GetFile(filename string) ([]byte, error)
 
