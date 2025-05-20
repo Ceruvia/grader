@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/helper/tester"
@@ -14,17 +15,19 @@ import (
 )
 
 const (
+	DEBUG = false
+
 	ISOLATE_PATH     = "/usr/local/bin/isolate"
 	C_TEST_ID_PREFIX = 900
 )
 
 func TestGradingC(t *testing.T) {
-	createCSubmission := func(mainSourceFilename string, timeInMilisecond, memoryInKilobyte int) models.Submission {
+	createCSubmission := func(mainSourceFilename string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithFiles{
 			Core: models.Core{
 				Language:  "C",
 				Limits:    createLimits(timeInMilisecond, memoryInKilobyte),
-				Testcases: createTestcases(2),
+				Testcases: createTestcases(numOfTestcase),
 			},
 			MainSourceFilename: mainSourceFilename,
 		}
@@ -37,10 +40,64 @@ func TestGradingC(t *testing.T) {
 		ExpectedResult  evaluator.GradingResult
 	}{
 		{
-			Title:           "Hello world",
-			Submisison:      createCSubmission("hello.c", 1000, 1024),
-			OriginalFileDir: "../../../tests/c_test/hello",
-			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
+			Title:           "Success_Hello World",
+			Submisison:      createCSubmission("hello.c", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_hello",
+			ExpectedResult:  createExpectedResult(true, "Compile Error", "", []string{"AC", "WA"}),
+		},
+		{
+			Title:           "Success_Kotak Bola",
+			Submisison:      createCSubmission("kotakbola.c", 20, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_kotakbola",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Success_Fix Tags",
+			Submisison:      createCSubmission("fixTags.c", 10, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_adt_fixtags",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Success_Hanoi",
+			Submisison:      createCSubmission("hanoi.c", 10, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_adt_hanoi",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Compile Error_Empty file",
+			Submisison:      createCSubmission("empty.c", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/ce_empty",
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "undefined reference to", []string{}),
+		},
+		{
+			Title:           "Compile Error_No file",
+			Submisison:      createCSubmission("gaada.c", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/ce_nofile",
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "undefined reference to", []string{}),
+		},
+		{
+			Title:           "Compile Error_Unfound function",
+			Submisison:      createCSubmission("unfoundfunc.c", 0, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/ce_unfoundfunc",
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "error: implicit declaration of function ‘prinf’;", []string{}),
+		},
+		{
+			Title:           "Runtime Error_Null pointer",
+			Submisison:      createCSubmission("nullpointer.c", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/re_nullpointer",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"RE", "AC"}),
+		},
+		{
+			Title:           "Runtime Error_Divide by zero",
+			Submisison:      createCSubmission("divide.c", 1, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/re_dividebyzero",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"RE"}),
+		},
+		{
+			Title:           "Time Limit",
+			Submisison:      createCSubmission("infiniteloop.c", 1, 200, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/tle_timelimit",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"TLE"}),
 		},
 	}
 
@@ -51,7 +108,11 @@ func TestGradingC(t *testing.T) {
 			if err != nil {
 				tester.AssertNotError(t, err)
 			}
-			defer sbx.Cleanup()
+			if DEBUG {
+				fmt.Println(sbx.BoxDir)
+			} else {
+				defer sbx.Cleanup()
+			}
 
 			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
@@ -68,19 +129,24 @@ func assertGradingResult(t testing.TB, got, want evaluator.GradingResult) {
 	t.Helper()
 
 	if got.IsSuccess != want.IsSuccess {
-		t.Errorf("expected IsSuccess to be %t, instead got %+v", want.IsSuccess, got)
+		t.Fatalf("expected IsSuccess to be %t, instead got %+v", want.IsSuccess, got)
 	}
 
-	if len(got.TestcaseGradingResult) != len(want.TestcaseGradingResult) {
-		t.Fatalf("expected got (%d) and want (%d) results to be the same number, instead got %+v", len(got.TestcaseGradingResult), len(want.TestcaseGradingResult), got)
+	if !strings.Contains(got.ErrorMessage, want.ErrorMessage) {
+		t.Errorf("expected to get %q errorMessage, instead got %+v", want.ErrorMessage, got)
 	}
 
-	for i, _ := range got.TestcaseGradingResult {
-		if got.TestcaseGradingResult[i].Verdict != want.TestcaseGradingResult[i].Verdict {
-			t.Errorf("expected %q TC to have %s verdict, instead got %+v", want.TestcaseGradingResult[i].InputFilename+"-"+want.TestcaseGradingResult[i].OutputFilename, want.TestcaseGradingResult[i].Verdict, got.TestcaseGradingResult[i])
+	if got.Status != "Compile Error" {
+		if len(got.TestcaseGradingResult) != len(want.TestcaseGradingResult) {
+			t.Fatalf("expected got (%d) and want (%d) results to be the same number, instead got %+v", len(got.TestcaseGradingResult), len(want.TestcaseGradingResult), got)
+		}
+
+		for i, _ := range got.TestcaseGradingResult {
+			if got.TestcaseGradingResult[i].Verdict != want.TestcaseGradingResult[i].Verdict {
+				t.Errorf("expected %q TC to have %s verdict, instead got %+v", want.TestcaseGradingResult[i].InputFilename+"-"+want.TestcaseGradingResult[i].OutputFilename, want.TestcaseGradingResult[i].Verdict, got.TestcaseGradingResult[i])
+			}
 		}
 	}
-
 }
 
 func createExpectedResult(isSuccess bool, status, errorMessage string, verdicts []string) evaluator.GradingResult {
