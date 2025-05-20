@@ -1,7 +1,6 @@
-package factory
+package languages
 
 import (
-	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/languages/builder"
 	"github.com/Ceruvia/grader/internal/languages/clang"
 	"github.com/Ceruvia/grader/internal/languages/javalang"
@@ -14,7 +13,7 @@ var (
 	Python3GradingLanguage = pylang.Python3Language{}
 	MakefileBuilder        = builder.MakefileBuilder{}
 
-	LanguageSimpleton = map[string]languages.Language{
+	LanguageSimpleton = map[string]Language{
 		CGradingLanguage.GetName():       CGradingLanguage,
 		JavaGradingLanguage.GetName():    JavaGradingLanguage,
 		Python3GradingLanguage.GetName(): Python3GradingLanguage,
@@ -22,7 +21,7 @@ var (
 	}
 )
 
-func GetLanguage(languageSimpleName string) languages.Language {
+func GetLanguage(languageSimpleName string) Language {
 	language := LanguageSimpleton[languageSimpleName]
 	return language
 }
