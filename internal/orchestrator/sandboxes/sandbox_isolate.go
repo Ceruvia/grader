@@ -11,7 +11,6 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/files"
-	"github.com/Ceruvia/grader/internal/models"
 )
 
 type IsolateSandbox struct {
@@ -174,7 +173,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	return sandboxedCommand
 }
 
-func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) (models.SandboxExecutionResult, error) {
+func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) SandboxExecutionResult {
 	command := s.BuildCommand(runCommand, redirectionFiles)
 
 	cmd := exec.Command(command.Program, command.Args...)
@@ -183,26 +182,26 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 	exitError, ok := err.(*exec.ExitError)
 
 	if exitError != nil && !ok {
-		return models.SandboxExecutionResult{
-			Status:   models.INTERNAL_ERROR,
+		return SandboxExecutionResult{
+			Status:   INTERNAL_ERROR,
 			ExitCode: exitError.ExitCode(),
 			Time:     -1,
 			Memory:   -1,
 			Message:  exitError.Error(),
-		}, exitError
+		}
 	}
 
 	res, err := ParseMetaResult(redirectionFiles.MetaFilename)
 	if err != nil {
-		return models.SandboxExecutionResult{
-			Status:  models.PARSING_META_ERROR,
+		return SandboxExecutionResult{
+			Status:  PARSING_META_ERROR,
 			Time:    -1,
 			Memory:  -1,
 			Message: err.Error(),
-		}, err
+		}
 	}
 
-	return res, nil
+	return res
 }
 
 func (s *IsolateSandbox) Cleanup() error {

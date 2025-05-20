@@ -5,14 +5,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/Ceruvia/grader/internal/models"
 )
 
-func ParseMetaResult(metaFilePath string) (models.SandboxExecutionResult, error) {
+func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 	file, err := os.Open(metaFilePath)
 	if err != nil {
-		return models.SandboxExecutionResult{}, err
+		return SandboxExecutionResult{}, err
 	}
 	defer file.Close()
 
@@ -33,7 +31,7 @@ func ParseMetaResult(metaFilePath string) (models.SandboxExecutionResult, error)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return models.SandboxExecutionResult{}, err
+		return SandboxExecutionResult{}, err
 	}
 
 	time, _ := strconv.ParseFloat(result["time"], 64)
@@ -46,18 +44,18 @@ func ParseMetaResult(metaFilePath string) (models.SandboxExecutionResult, error)
 
 	isKilledParsed := result["killed"]
 
-	status := models.ZERO_EXIT_CODE
+	status := ZERO_EXIT_CODE
 	switch statusParsed {
 	case "RE":
-		status = models.NONZERO_EXIT_CODE
+		status = NONZERO_EXIT_CODE
 	case "SG":
-		status = models.KILLED_ON_SIGNAL
+		status = KILLED_ON_SIGNAL
 	case "TO":
-		status = models.TIMED_OUT
+		status = TIMED_OUT
 	case "XX":
-		status = models.INTERNAL_ERROR
+		status = INTERNAL_ERROR
 	default:
-		status = models.ZERO_EXIT_CODE
+		status = ZERO_EXIT_CODE
 	}
 
 	isKilled := false
@@ -65,7 +63,7 @@ func ParseMetaResult(metaFilePath string) (models.SandboxExecutionResult, error)
 		isKilled = true
 	}
 
-	return models.SandboxExecutionResult{
+	return SandboxExecutionResult{
 		Time:       time * 1000,
 		WallTime:   wallTime * 1000,
 		Memory:     memory,

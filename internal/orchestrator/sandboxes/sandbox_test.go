@@ -8,7 +8,6 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/tester"
-	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
 )
 
@@ -347,7 +346,7 @@ func TestIsolate(t *testing.T) {
 			CodeToCompileFilepath string
 			RunCommand            command.CommandBuilder
 			SecondRunCommand      command.CommandBuilder
-			ExpectedStatus        models.SandboxExecutionStatus
+			ExpectedStatus        sandboxes.SandboxExecutionStatus
 			ExpectedMessage       string
 		}{
 			{
@@ -355,7 +354,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/hello.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 				SecondRunCommand:      *command.GetCommandBuilder("./hello"),
-				ExpectedStatus:        models.ZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
 				ExpectedMessage:       "",
 			},
 			{
@@ -363,7 +362,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/hello.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        models.ZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
 				ExpectedMessage:       "",
 			},
 			{
@@ -371,7 +370,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/empty.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("empty.c").AddArgs("-o").AddArgs("empty"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        models.NONZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
 				ExpectedMessage:       "Exited with error status 1",
 			},
 			{
@@ -379,7 +378,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/infiniterecursion.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniterecursion.c").AddArgs("-o").AddArgs("infinite"),
 				SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
-				ExpectedStatus:        models.KILLED_ON_SIGNAL,
+				ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
 				ExpectedMessage:       "Caught fatal signal 9",
 			},
 			{
@@ -387,7 +386,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/noinclude.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("noinclude.c").AddArgs("-o").AddArgs("noinclude"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        models.NONZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
 				ExpectedMessage:       "Exited with error status 1",
 			},
 			{
@@ -395,7 +394,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/nullpointer.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("nullpointer.c").AddArgs("-o").AddArgs("nullpointer"),
 				SecondRunCommand:      *command.GetCommandBuilder("./nullpointer"),
-				ExpectedStatus:        models.KILLED_ON_SIGNAL,
+				ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
 				ExpectedMessage:       "Caught fatal signal 11",
 			},
 			{
@@ -403,7 +402,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/outofbounds.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("outofbounds.c").AddArgs("-o").AddArgs("outofbounds"),
 				SecondRunCommand:      *command.GetCommandBuilder("./outofbounds"),
-				ExpectedStatus:        models.KILLED_ON_SIGNAL,
+				ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
 				ExpectedMessage:       "Caught fatal signal 6",
 			},
 			{
@@ -411,7 +410,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/syntaxerror.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("syntaxerror.c").AddArgs("-o").AddArgs("syntaxerror"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        models.NONZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
 				ExpectedMessage:       "Exited with error status 1",
 			},
 			{
@@ -419,7 +418,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/typemismatch.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("typemismatch.c").AddArgs("-o").AddArgs("typemismatch"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        models.NONZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
 				ExpectedMessage:       "Exited with error status 1",
 			},
 			{
@@ -427,7 +426,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/unfoundfunc.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("unfoundfunc.c").AddArgs("-o").AddArgs("unfoundfunc"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        models.NONZERO_EXIT_CODE,
+				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
 				ExpectedMessage:       "Exited with error status 1",
 			},
 			{
@@ -435,7 +434,7 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/infiniteloop.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniteloop.c").AddArgs("-o").AddArgs("infinite"),
 				SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
-				ExpectedStatus:        models.TIMED_OUT,
+				ExpectedStatus:        sandboxes.TIMED_OUT,
 				ExpectedMessage:       "Time limit exceeded (wall clock)",
 			},
 		}
@@ -475,7 +474,7 @@ func TestIsolate(t *testing.T) {
 				sbx.SetMemoryLimitInKilobytes(10240)
 				sbx.AddAllowedDirectory("/etc")
 
-				res, err := sbx.Execute(test.RunCommand, red)
+				res := sbx.Execute(test.RunCommand, red)
 
 				if err != nil {
 					t.Fatal(err)
@@ -498,10 +497,7 @@ func TestIsolate(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					res, err = sbx.Execute(test.SecondRunCommand, secondRed)
-					if err != nil {
-						t.Fatal(err)
-					}
+					res = sbx.Execute(test.SecondRunCommand, secondRed)
 				}
 
 				if res.Status != test.ExpectedStatus || res.Message != test.ExpectedMessage {
@@ -683,10 +679,10 @@ func TestRedirections(t *testing.T) {
 func TestParser(t *testing.T) {
 	Tests := []struct {
 		Title, Filename string
-		Expected        models.SandboxExecutionResult
+		Expected        sandboxes.SandboxExecutionResult
 	}{
-		{"Success", "success.meta", models.SandboxExecutionResult{
-			Status:     models.ZERO_EXIT_CODE,
+		{"Success", "success.meta", sandboxes.SandboxExecutionResult{
+			Status:     sandboxes.ZERO_EXIT_CODE,
 			ExitSignal: 0,
 			ExitCode:   0,
 			Time:       31,
@@ -695,8 +691,8 @@ func TestParser(t *testing.T) {
 			Message:    "",
 			IsKilled:   false,
 		}},
-		{"Runtime Error", "re.meta", models.SandboxExecutionResult{
-			Status:     models.NONZERO_EXIT_CODE,
+		{"Runtime Error", "re.meta", sandboxes.SandboxExecutionResult{
+			Status:     sandboxes.NONZERO_EXIT_CODE,
 			ExitSignal: 0,
 			ExitCode:   1,
 			Time:       25,
@@ -705,8 +701,8 @@ func TestParser(t *testing.T) {
 			Message:    "Exited with error status 1",
 			IsKilled:   false,
 		}},
-		{"Killed on Signal", "sigkill.meta", models.SandboxExecutionResult{
-			Status:     models.KILLED_ON_SIGNAL,
+		{"Killed on Signal", "sigkill.meta", sandboxes.SandboxExecutionResult{
+			Status:     sandboxes.KILLED_ON_SIGNAL,
 			ExitSignal: 9,
 			ExitCode:   0,
 			Time:       10,
@@ -715,8 +711,8 @@ func TestParser(t *testing.T) {
 			Message:    "Caught fatal signal 9",
 			IsKilled:   false,
 		}},
-		{"Time Limit Exceeded", "tle.meta", models.SandboxExecutionResult{
-			Status:     models.TIMED_OUT,
+		{"Time Limit Exceeded", "tle.meta", sandboxes.SandboxExecutionResult{
+			Status:     sandboxes.TIMED_OUT,
 			ExitSignal: 0,
 			ExitCode:   0,
 			Time:       1077,
