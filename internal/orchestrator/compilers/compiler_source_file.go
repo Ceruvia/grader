@@ -39,6 +39,9 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 		return nil, err
 	}
 
+	compiler.Sandbox.AddFileWithoutMove(CompilationMetaFilename)
+	compiler.Sandbox.AddFileWithoutMove(CompilationOutputFilename)
+
 	return &compiler, nil
 }
 
@@ -47,15 +50,12 @@ func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesIn
 	compileCommand := c.LanguageOrBuilder.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
 	result := c.Sandbox.Execute(compileCommand, c.Redirections)
 
-	c.Sandbox.AddFileWithoutMove(CompilationMetaFilename)
-	c.Sandbox.AddFileWithoutMove(CompilationOutputFilename)
-
 	if result.Status == sandboxes.ZERO_EXIT_CODE {
 		return CompilerResult{
 			IsSuccess:      true,
 			BinaryFilename: c.LanguageOrBuilder.GetExecutableFilename(mainSourceFilename),
 		}
-	} else if result.Status == sandboxes.NONZERO_EXIT_CODE {
+	} else if result.Status == sandboxes.NONZERO_EXIT_CODE || result.Status == sandboxes.KILLED_ON_SIGNAL {
 		data, err := c.Sandbox.GetFile(CompilationOutputFilename)
 
 		if err != nil && err != os.ErrNotExist {
