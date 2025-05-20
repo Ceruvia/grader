@@ -17,8 +17,9 @@ import (
 const (
 	DEBUG = false
 
-	ISOLATE_PATH     = "/usr/local/bin/isolate"
-	C_TEST_ID_PREFIX = 900
+	ISOLATE_PATH              = "/usr/local/bin/isolate"
+	C_TEST_ID_PREFIX          = 900
+	C_MAKEFILE_TEST_ID_PREFIX = 910
 )
 
 func TestGradingC(t *testing.T) {
@@ -124,6 +125,98 @@ func TestGradingC(t *testing.T) {
 		})
 	}
 }
+
+func TestGradingCWithMakefile(t *testing.T) {
+	createCWithMakefileSubmission := func(compileScript, runScript string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
+		return models.SubmissionWithBuilder{
+			Core: models.Core{
+				Language:  "C",
+				Limits:    createLimits(timeInMilisecond, memoryInKilobyte),
+				Testcases: createTestcases(numOfTestcase),
+			},
+			Builder:       "Makefile",
+			RunScript:     runScript,
+			CompileScript: compileScript,
+		}
+	}
+
+	GradingTests := []struct {
+		Title           string
+		Submisison      models.Submission
+		OriginalFileDir string
+		ExpectedResult  evaluator.GradingResult
+	}{
+		{
+			Title:           "Success_Hello World",
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_hello",
+			ExpectedResult:  createExpectedResult(true, "Compile Error", "", []string{"AC", "WA"}),
+		},
+		{
+			Title:           "Success_Kotak Bola",
+			Submisison:      createCWithMakefileSubmission("compile", "prog", 20, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_kotakbola",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Success_Fix Tags",
+			Submisison:      createCWithMakefileSubmission("compile", "prog", 10, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/scs_adt_fixtags",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Compile Error_Empty file",
+			Submisison:      createCWithMakefileSubmission("", "empty", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/ce_empty",
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "undefined reference to", []string{}),
+		},
+		{
+			Title:           "Compile Error_No file",
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/ce_nofile",
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "empty.c: No such file or directory", []string{}),
+		},
+		{
+			Title:           "Compile Error_No makefile",
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/ce_nomakefile",
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "make: *** No targets specified and no makefile found.  Stop.", []string{}),
+		},
+		{
+			Title:           "Runtime Error_Null pointer",
+			Submisison:      createCWithMakefileSubmission("", "nullpointer", 2, 1000, 1024),
+			OriginalFileDir: "../../../tests/c_test/e2e/re_nullpointer",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"RE", "AC"}),
+		},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, C_MAKEFILE_TEST_ID_PREFIX+i)
+
+			if err != nil {
+				tester.AssertNotError(t, err)
+			}
+			if DEBUG {
+				fmt.Println(sbx.BoxDir)
+			} else {
+				defer sbx.Cleanup()
+			}
+
+			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+				t.Fatal(err)
+			}
+
+			res := pipeline.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			assertGradingResult(t, res, test.ExpectedResult)
+		})
+	}
+}
+
+// func TestGradingJava(t *testing.T) {
+
+// }
 
 func assertGradingResult(t testing.TB, got, want evaluator.GradingResult) {
 	t.Helper()
