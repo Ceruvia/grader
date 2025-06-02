@@ -59,10 +59,10 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 	}
 
 	return EngineRunResult{
-		Verdict:                finalVerdict,
-		TimeToRunInMiliseconds: int(execResult.Time * 1000),
-		MemoryUsedInKilobytes:  execResult.Memory,
-		HasErrorMessage:        false,
+		Verdict:                 finalVerdict,
+		TimeToRunInMilliseconds: int(execResult.Time * 1000),
+		MemoryUsedInKilobytes:   execResult.Memory,
+		HasErrorMessage:         false,
 	}
 }
 

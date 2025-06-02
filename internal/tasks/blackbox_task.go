@@ -1,9 +1,10 @@
 package tasks
 
 import (
+	"encoding/json"
+
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator"
-	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
 	"github.com/Ceruvia/grader/internal/pool"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
@@ -16,33 +17,21 @@ func GradeBlackbox(
 	language string,
 
 	mainSourceFilename string,
-) (evaluator.GradingResult, error) {
+) (string, error) {
 	acquiredSandbox := pool.Pool.Acquire()
 	defer pool.Pool.Release(acquiredSandbox)
 
 	sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", acquiredSandbox.BoxId)
 	if err != nil {
-		return evaluator.GradingResult{
-			Status:       "Internal Error",
-			IsSuccess:    false,
-			ErrorMessage: err.Error(),
-		}, nil
+		return "", nil
 	}
 
 	if err := DownloadFileToSandbox(sbx, "grader.zip", graderFilesURL); err != nil {
-		return evaluator.GradingResult{
-			Status:       "Internal Error",
-			IsSuccess:    false,
-			ErrorMessage: err.Error(),
-		}, nil
+		return "", nil
 	}
 
 	if err := DownloadFileToSandbox(sbx, "submission.zip", submissionFilesURL); err != nil {
-		return evaluator.GradingResult{
-			Status:       "Internal Error",
-			IsSuccess:    false,
-			ErrorMessage: err.Error(),
-		}, nil
+		return "", nil
 	}
 
 	submission := &models.SubmissionWithFiles{
@@ -59,5 +48,10 @@ func GradeBlackbox(
 		MainSourceFilename: mainSourceFilename,
 	}
 
-	return orchestrator.GradeBlackboxSubmission(sbx, submission), nil
+	b, err := json.Marshal(orchestrator.GradeBlackboxSubmission(sbx, submission))
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }

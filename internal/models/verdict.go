@@ -1,8 +1,8 @@
 package models
 
 type Verdict struct {
-	Name string
-	Code string
+	Name string `json:"name"`
+	Code string `json:"code"`
 }
 
 var (
