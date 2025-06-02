@@ -8,7 +8,7 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/tester"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 func TestIsolate(t *testing.T) {
@@ -138,15 +138,15 @@ func TestIsolate(t *testing.T) {
 		t.Run("Move and adds file into boxdir", func(t *testing.T) {
 			sbx := sandboxes.IsolateSandbox{
 				Filenames: []string{},
-				BoxDir:    "../../../tests/copy/dest",
+				BoxDir:    "../../tests/copy/dest",
 			}
 
-			err := sbx.AddFile("../../../tests/copy/source/file.c")
-			defer os.Remove("../../../tests/copy/dest/file.c")
+			err := sbx.AddFile("../../tests/copy/source/file.c")
+			defer os.Remove("../../tests/copy/dest/file.c")
 
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../../tests/copy/dest/file.c"); err != nil {
+			if _, err := os.Stat("../../tests/copy/dest/file.c"); err != nil {
 				t.Errorf("file was not moved to Boxdir: %q", err)
 			}
 
@@ -192,7 +192,7 @@ func TestIsolate(t *testing.T) {
 
 	t.Run("GetFile", func(t *testing.T) {
 		sbx := sandboxes.IsolateSandbox{
-			BoxDir:    "../../../tests/copy/source",
+			BoxDir:    "../../tests/copy/source",
 			Filenames: []string{"file.c", "gurt.c"},
 		}
 
@@ -351,7 +351,7 @@ func TestIsolate(t *testing.T) {
 		}{
 			{
 				Title:                 "Compile hello.c and run",
-				CodeToCompileFilepath: "../../../tests/c_test/hello.c",
+				CodeToCompileFilepath: "../../tests/c_test/hello.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 				SecondRunCommand:      *command.GetCommandBuilder("./hello"),
 				ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
@@ -359,7 +359,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile hello.c",
-				CodeToCompileFilepath: "../../../tests/c_test/hello.c",
+				CodeToCompileFilepath: "../../tests/c_test/hello.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("hello.c").AddArgs("-o").AddArgs("hello"),
 				SecondRunCommand:      emptyCommand,
 				ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
@@ -367,7 +367,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile empty.c",
-				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/empty.c",
+				CodeToCompileFilepath: "../../tests/c_test/uncompileable/empty.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("empty.c").AddArgs("-o").AddArgs("empty"),
 				SecondRunCommand:      emptyCommand,
 				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -375,7 +375,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile infiniterecursion.c and run",
-				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/infiniterecursion.c",
+				CodeToCompileFilepath: "../../tests/c_test/runtimeerror/infiniterecursion.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniterecursion.c").AddArgs("-o").AddArgs("infinite"),
 				SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
 				ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
@@ -383,7 +383,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile noinclude.c",
-				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/noinclude.c",
+				CodeToCompileFilepath: "../../tests/c_test/uncompileable/noinclude.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("noinclude.c").AddArgs("-o").AddArgs("noinclude"),
 				SecondRunCommand:      emptyCommand,
 				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -391,7 +391,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile nullpointer.c and run",
-				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/nullpointer.c",
+				CodeToCompileFilepath: "../../tests/c_test/runtimeerror/nullpointer.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("nullpointer.c").AddArgs("-o").AddArgs("nullpointer"),
 				SecondRunCommand:      *command.GetCommandBuilder("./nullpointer"),
 				ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
@@ -399,7 +399,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile outofbounds.c and run",
-				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/outofbounds.c",
+				CodeToCompileFilepath: "../../tests/c_test/runtimeerror/outofbounds.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("outofbounds.c").AddArgs("-o").AddArgs("outofbounds"),
 				SecondRunCommand:      *command.GetCommandBuilder("./outofbounds"),
 				ExpectedStatus:        sandboxes.KILLED_ON_SIGNAL,
@@ -407,7 +407,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile syntaxerror.c",
-				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/syntaxerror.c",
+				CodeToCompileFilepath: "../../tests/c_test/uncompileable/syntaxerror.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("syntaxerror.c").AddArgs("-o").AddArgs("syntaxerror"),
 				SecondRunCommand:      emptyCommand,
 				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -415,7 +415,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile typemismatch.c",
-				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/typemismatch.c",
+				CodeToCompileFilepath: "../../tests/c_test/uncompileable/typemismatch.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("typemismatch.c").AddArgs("-o").AddArgs("typemismatch"),
 				SecondRunCommand:      emptyCommand,
 				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -423,7 +423,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile unfoundfunc.c",
-				CodeToCompileFilepath: "../../../tests/c_test/uncompileable/unfoundfunc.c",
+				CodeToCompileFilepath: "../../tests/c_test/uncompileable/unfoundfunc.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("unfoundfunc.c").AddArgs("-o").AddArgs("unfoundfunc"),
 				SecondRunCommand:      emptyCommand,
 				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
@@ -431,7 +431,7 @@ func TestIsolate(t *testing.T) {
 			},
 			{
 				Title:                 "Compile infiniteloop.c and run",
-				CodeToCompileFilepath: "../../../tests/c_test/runtimeerror/infiniteloop.c",
+				CodeToCompileFilepath: "../../tests/c_test/runtimeerror/infiniteloop.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("infiniteloop.c").AddArgs("-o").AddArgs("infinite"),
 				SecondRunCommand:      *command.GetCommandBuilder("./infinite"),
 				ExpectedStatus:        sandboxes.TIMED_OUT,
@@ -512,20 +512,20 @@ func TestRedirections(t *testing.T) {
 	t.Run("Creation And Redirection", func(t *testing.T) {
 		t.Run("Create and redirects meta file", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/sandbox",
+				Boxdir: "../../tests/sandbox",
 			}
 			err := red.CreateNewMetaFileAndRedirect("_isolate.meta")
-			defer deleteFile("../../../tests/sandbox/_isolate.meta")
+			defer deleteFile("../../tests/sandbox/_isolate.meta")
 
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../../tests/sandbox/_isolate.meta"); err != nil {
+			if _, err := os.Stat("../../tests/sandbox/_isolate.meta"); err != nil {
 				t.Fatalf("file was not created: %q", err.Error())
 			}
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:       "../../../tests/sandbox",
-				MetaFilename: "../../../tests/sandbox/_isolate.meta",
+				Boxdir:       "../../tests/sandbox",
+				MetaFilename: "../../tests/sandbox/_isolate.meta",
 			}
 
 			tester.AssertDeep(t, red, want)
@@ -533,19 +533,19 @@ func TestRedirections(t *testing.T) {
 
 		t.Run("Create and redirects standard input file", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/sandbox",
+				Boxdir: "../../tests/sandbox",
 			}
 			err := red.CreateNewStandardInputFileAndRedirect("input.in")
-			defer deleteFile("../../../tests/sandbox/input.in")
+			defer deleteFile("../../tests/sandbox/input.in")
 
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../../tests/sandbox/input.in"); err != nil {
+			if _, err := os.Stat("../../tests/sandbox/input.in"); err != nil {
 				t.Fatalf("file was not created: %q", err.Error())
 			}
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:                "../../../tests/sandbox",
+				Boxdir:                "../../tests/sandbox",
 				StandardInputFilename: "input.in",
 			}
 
@@ -554,19 +554,19 @@ func TestRedirections(t *testing.T) {
 
 		t.Run("Create and redirects standard output file", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/sandbox",
+				Boxdir: "../../tests/sandbox",
 			}
 			err := red.CreateNewStandardOutputFileAndRedirect("output.out")
-			defer deleteFile("../../../tests/sandbox/output.out")
+			defer deleteFile("../../tests/sandbox/output.out")
 
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../../tests/sandbox/output.out"); err != nil {
+			if _, err := os.Stat("../../tests/sandbox/output.out"); err != nil {
 				t.Fatalf("file was not created: %q", err.Error())
 			}
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:                 "../../../tests/sandbox",
+				Boxdir:                 "../../tests/sandbox",
 				StandardOutputFilename: "output.out",
 			}
 
@@ -575,19 +575,19 @@ func TestRedirections(t *testing.T) {
 
 		t.Run("Create and redirects standard error file", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/sandbox",
+				Boxdir: "../../tests/sandbox",
 			}
 			err := red.CreateNewStandardErrorFileAndRedirect("error.err")
-			defer deleteFile("../../../tests/sandbox/error.err")
+			defer deleteFile("../../tests/sandbox/error.err")
 
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../../tests/sandbox/error.err"); err != nil {
+			if _, err := os.Stat("../../tests/sandbox/error.err"); err != nil {
 				t.Fatalf("file was not created: %q", err.Error())
 			}
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:                "../../../tests/sandbox",
+				Boxdir:                "../../tests/sandbox",
 				StandardErrorFilename: "error.err",
 			}
 
@@ -598,15 +598,15 @@ func TestRedirections(t *testing.T) {
 	t.Run("Setters", func(t *testing.T) {
 		t.Run("RedirectMeta", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/copy/source",
+				Boxdir: "../../tests/copy/source",
 			}
 			err := red.RedirectMeta("file.c")
 
 			tester.AssertNotError(t, err)
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:       "../../../tests/copy/source",
-				MetaFilename: "../../../tests/copy/source/file.c",
+				Boxdir:       "../../tests/copy/source",
+				MetaFilename: "../../tests/copy/source/file.c",
 			}
 
 			tester.AssertDeep(t, red, want)
@@ -614,14 +614,14 @@ func TestRedirections(t *testing.T) {
 
 		t.Run("RedirectStandardInput", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/copy/source",
+				Boxdir: "../../tests/copy/source",
 			}
 			err := red.RedirectStandardInput("file.c")
 
 			tester.AssertNotError(t, err)
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:                "../../../tests/copy/source",
+				Boxdir:                "../../tests/copy/source",
 				StandardInputFilename: "file.c",
 			}
 
@@ -630,14 +630,14 @@ func TestRedirections(t *testing.T) {
 
 		t.Run("RedirectStandardOutput", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/copy/source",
+				Boxdir: "../../tests/copy/source",
 			}
 			err := red.RedirectStandardOutput("file.c")
 
 			tester.AssertNotError(t, err)
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:                 "../../../tests/copy/source",
+				Boxdir:                 "../../tests/copy/source",
 				StandardOutputFilename: "file.c",
 			}
 
@@ -646,14 +646,14 @@ func TestRedirections(t *testing.T) {
 
 		t.Run("RedirectStandardMeta", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../../tests/copy/source",
+				Boxdir: "../../tests/copy/source",
 			}
 			err := red.RedirectStandardError("file.c")
 
 			tester.AssertNotError(t, err)
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:                "../../../tests/copy/source",
+				Boxdir:                "../../tests/copy/source",
 				StandardErrorFilename: "file.c",
 			}
 
@@ -725,7 +725,7 @@ func TestParser(t *testing.T) {
 
 	for _, test := range Tests {
 		t.Run(fmt.Sprintf("Parse %+v", test.Title), func(t *testing.T) {
-			got, err := sandboxes.ParseMetaResult("../../../tests/sandbox/parse/" + test.Filename)
+			got, err := sandboxes.ParseMetaResult("../../tests/sandbox/parse/" + test.Filename)
 			tester.AssertNotError(t, err)
 			tester.AssertDeep(t, got, test.Expected)
 		})

@@ -4,7 +4,7 @@ import (
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 type BlackboxGradingEngine struct {

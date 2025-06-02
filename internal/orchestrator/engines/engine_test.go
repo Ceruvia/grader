@@ -10,7 +10,7 @@ import (
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/engines"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 var Limit = models.GradingLimit{TimeInMiliseconds: 1000, MemoryInKilobytes: 102400}

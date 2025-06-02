@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/Ceruvia/grader/internal/languages"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 type SourceFileCompiler struct {

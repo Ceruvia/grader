@@ -8,7 +8,7 @@ import (
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/languages/clang"
 	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 func TestSourceFileCompiler(t *testing.T) {

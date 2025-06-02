@@ -1,4 +1,4 @@
-package pipeline
+package orchestrator
 
 import "github.com/Ceruvia/grader/internal/orchestrator/evaluator"
 

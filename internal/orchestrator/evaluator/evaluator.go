@@ -1,7 +1,7 @@
 package evaluator
 
 import (
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 type Evaluator interface {
