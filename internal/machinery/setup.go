@@ -2,13 +2,14 @@ package machinery
 
 import (
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
-	"github.com/RichardKnop/machinery/v2/log"
-	"github.com/RichardKnop/machinery/v2/tasks"
+	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
 	amqpbackend "github.com/RichardKnop/machinery/v2/backends/amqp"
 	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	"github.com/RichardKnop/machinery/v2/config"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
+	"github.com/RichardKnop/machinery/v2/log"
+	"github.com/RichardKnop/machinery/v2/tasks"
 )
 
 func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, error) {
@@ -31,19 +32,19 @@ func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, erro
 	server := machinery.NewServer(cnf, broker, backend, lock)
 
 	tasksMap := map[string]interface{}{
-		// TODO: add tasks later
+		"blackbox": ceruviaTasks.GradeBlackbox,
 	}
 
 	return server, server.RegisterTasks(tasksMap)
 }
 
-func LaunchWorker(cfg *ceruviaConfig.MessageQueueConfig) error {
-	server, err := startServer(cfg)
+func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
+	server, err := startServer(cfg.MQCfg)
 	if err != nil {
 		return err
 	}
 
-	worker := server.NewWorker("ceruvia_worker", cfg.NumOfWorkers)
+	worker := server.NewWorker("ceruvia_worker", cfg.WorkerCount)
 
 	errorHandler := func(err error) {
 		log.ERROR.Println("I am an error handler:", err)
