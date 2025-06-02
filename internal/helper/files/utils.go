@@ -92,3 +92,16 @@ func RemoveExtention(filename string) string {
 	extention := filepath.Ext(filename)
 	return strings.TrimSuffix(filename, extention)
 }
+
+func GetFilenamesInDir(dirpath string) ([]string, error) {
+	entries, err := os.ReadDir(dirpath)
+	if err != nil {
+		return nil, err
+	}
+
+	var filenames []string
+	for _, entry := range entries {
+		filenames = append(filenames, entry.Name())
+	}
+	return filenames, nil
+}
