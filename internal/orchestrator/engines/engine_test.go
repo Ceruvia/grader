@@ -5,146 +5,139 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/factory"
 	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/engines"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
-	"github.com/Ceruvia/grader/internal/orchestrator/sandboxes/isolate"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
-func TestConstructor(t *testing.T) {
-	t.Run("it should return error when language provided does not exist", func(t *testing.T) {
-		_, err := engines.CreateBlackboxGradingEngine(&isolate.IsolateSandbox{}, models.Submission{
-			Language: "gaada bahasanya abangku",
-		}, evaluator.SimpleEvaluator{})
+var Limit = models.GradingLimit{TimeInMiliseconds: 1000, MemoryInKilobytes: 102400}
 
-		if err != languages.ErrLanguageNotExist {
-			t.Errorf("expected LanguageNotExists error but instead got %q", err)
-		}
-	})
-
-	t.Run("it should be able to create a BlackBoxEngine", func(t *testing.T) {
-		sbx := &isolate.IsolateSandbox{
+func TestBlackboxGradingEngine(t *testing.T) {
+	t.Run("Creation", func(t *testing.T) {
+		sbx := &sandboxes.IsolateSandbox{
 			BoxDir: "../../../tests/not_commited",
 		}
-		submission := models.Submission{
-			Id:                 "awjofi92",
-			TempDir:            "/temp/fake",
-			Language:           "C",
-			MainSourceFilename: "hello.c",
-			TCInputFiles:       []string{"1.in"},
-			TCOutputFiles:      []string{"1.out"},
-			Limits: models.GradingLimit{
-				TimeInMiliseconds: 1000,
-				MemoryInKilobytes: 102400,
-			},
-		}
 
-		engine, err := engines.CreateBlackboxGradingEngine(sbx, submission, evaluator.SimpleEvaluator{})
-		if err != nil {
-			t.Errorf("expected to get no error, instead got %q", err)
-		}
+		t.Run("Returns BlackBoxGradingEngine", func(t *testing.T) {
+			engine, err := engines.CreateBlackboxGradingEngine(
+				sbx,
+				languages.CGradingLanguage,
+				Limit,
+				evaluator.SimpleEvaluator{},
+				"hello.c",
+			)
 
-		want := engines.BlackboxGradingEngine{
-			Sandbox:            sbx,
-			Language:           factory.CGradingLanguage,
-			Evaluator:          evaluator.SimpleEvaluator{},
-			ExecutableFilename: "hello",
-		}
+			tester.AssertNotError(t, err)
 
-		tester.AssertDeep(t, engine, want)
-	})
-}
+			want := engines.BlackboxGradingEngine{
+				Sandbox:                    sbx,
+				LanguageOrBuilder:          languages.CGradingLanguage,
+				Evaluator:                  evaluator.SimpleEvaluator{},
+				ExecutableScriptOrFilename: "hello",
+			}
 
-func TestRun(t *testing.T) {
-	t.Run("it should error when the binary file isn't found", func(t *testing.T) {
-		submission := models.Submission{
-			Id:                 "awjofi92",
-			TempDir:            "../../../tests/c_test/hello",
-			Language:           "C",
-			MainSourceFilename: "hello.c",
-			TCInputFiles:       []string{"1.in"},
-			TCOutputFiles:      []string{"1.out"},
-			Limits: models.GradingLimit{
-				TimeInMiliseconds: 1000,
-				MemoryInKilobytes: 102400,
-			},
-		}
+			tester.AssertDeep(t, *engine, want)
+		})
 
-		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 15)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer sbx.Cleanup()
+		t.Run("Returns error when language doesn't exist", func(t *testing.T) {
+			_, err := engines.CreateBlackboxGradingEngine(
+				sbx,
+				nil,
+				Limit,
+				evaluator.SimpleEvaluator{},
+				"hello.c",
+			)
 
-		err = sbx.AddFile(submission.TempDir + "/1.in")
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = sbx.AddFile(submission.TempDir + "/1.out")
-		if err != nil {
-			t.Fatal(err)
-		}
+			tester.AssertCustomError(t, err, languages.ErrLanguageNotExist)
+		})
 
-		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission, evaluator.SimpleEvaluator{})
-		if err != nil {
-			t.Errorf("expected to get no error, instead got %q", err)
-		}
+		t.Run("Returns error when sandbox is Nil", func(t *testing.T) {
+			_, err := engines.CreateBlackboxGradingEngine(
+				nil,
+				languages.CGradingLanguage,
+				Limit,
+				evaluator.SimpleEvaluator{},
+				"hello.c",
+			)
 
-		result, err := engine.Run("1.in", "1.out")
-
-		tester.AssertNotError(t, err)
-		if result.Verdict != models.VerdictRE || !strings.Contains(result.ErrorMessage, "No such file or directory") {
-			t.Errorf("expected Runtime Error status with File not found error message, instead got %+v", result)
-		}
+			tester.AssertCustomError(t, err, sandboxes.ErrSandboxIsNil)
+		})
 	})
 
-	t.Run("it should be able to run with TC", func(t *testing.T) {
-		submission := models.Submission{
-			Id:                 "awjofi92",
-			TempDir:            "../../../tests/c_test/hello_binary",
-			Language:           "C",
-			MainSourceFilename: "hello.c",
-			TCInputFiles:       []string{"1.in"},
-			TCOutputFiles:      []string{"1.out"},
-			Limits: models.GradingLimit{
-				TimeInMiliseconds: 1000,
-				MemoryInKilobytes: 102400,
-			},
-		}
+	t.Run("Run", func(t *testing.T) {
+		t.Run("Return EngineRunResult", func(t *testing.T) {
+			sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sbx.Cleanup()
 
-		sbx, err := isolate.CreateIsolateSandbox("/usr/local/bin/isolate", 990)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer sbx.Cleanup()
+			if err := sbx.AddFile("../../../tests/c_test/hello_binary/1.in"); err != nil {
+				t.Fatal(err)
+			}
 
-		err = sbx.AddFile(submission.TempDir + "/1.in")
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = sbx.AddFile(submission.TempDir + "/1.out")
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = sbx.AddFile(submission.TempDir + "/hello") // Give exec permission
-		if err != nil {
-			t.Fatal(err)
-		}
-		os.Chmod(sbx.BoxDir+"/hello", 0700)
+			if err := sbx.AddFile("../../../tests/c_test/hello_binary/1.out"); err != nil {
+				t.Fatal(err)
+			}
 
-		engine, err := engines.CreateBlackboxGradingEngine(&sbx, submission, evaluator.SimpleEvaluator{})
-		if err != nil {
-			t.Errorf("expected to get no error, instead got %q", err)
-		}
+			if err := sbx.AddFile("../../../tests/c_test/hello_binary/hello"); err != nil {
+				t.Fatal(err)
+			}
 
-		result, err := engine.Run("1.in", "1.out")
+			os.Chmod(sbx.BoxDir+"/hello", 0700)
 
-		tester.AssertNotError(t, err)
-		if result.Verdict != models.VerdictAC {
-			t.Errorf("expected Accepted status, instead got %+v", result)
-		}
+			engine, err := engines.CreateBlackboxGradingEngine(
+				sbx,
+				languages.CGradingLanguage,
+				Limit,
+				evaluator.SimpleEvaluator{},
+				"hello.c",
+			)
+
+			tester.AssertNotError(t, err)
+
+			result, err := engine.Run("1.in", "1.out")
+
+			tester.AssertNotError(t, err)
+			if result.Verdict != models.VerdictAC {
+				t.Errorf("expected Accepted status, instead got %+v", result)
+			}
+		})
+
+		t.Run("Returns error when binary file is not found", func(t *testing.T) {
+			sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 302)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sbx.Cleanup()
+
+			if err := sbx.AddFile("../../../tests/c_test/hello/1.in"); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := sbx.AddFile("../../../tests/c_test/hello/1.out"); err != nil {
+				t.Fatal(err)
+			}
+
+			engine, err := engines.CreateBlackboxGradingEngine(
+				sbx,
+				languages.CGradingLanguage,
+				Limit,
+				evaluator.SimpleEvaluator{},
+				"hello.c",
+			)
+
+			tester.AssertNotError(t, err)
+
+			result, err := engine.Run("1.in", "1.out")
+
+			tester.AssertNotError(t, err)
+			if result.Verdict != models.VerdictRE || !strings.Contains(result.ErrorMessage, "No such file or directory") {
+				t.Errorf("expected Runtime Error status with File not found error message, instead got %+v", result)
+			}
+		})
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -16,8 +17,22 @@ func AssertDeep[T any](t testing.TB, got, want T) {
 
 func AssertError(t testing.TB, got, want error) {
 	t.Helper()
-	if got != want {
-		t.Errorf("got error %+v, when expected %+v", got, want)
+	if !errors.Is(got, want) {
+		t.Errorf("got error %q, when expected %q", got, want)
+	}
+}
+
+func AssertIncludesError(t testing.TB, got error, wantToContain string) {
+	t.Helper()
+	if !strings.Contains(got.Error(), wantToContain) {
+		t.Errorf("got error %q, when expected to contain %q", got, wantToContain)
+	}
+}
+
+func AssertCustomError(t testing.TB, got, want error) {
+	t.Helper()
+	if got.Error() != want.Error() {
+		t.Errorf("got error %q, when expected %q", got, want)
 	}
 }
 
