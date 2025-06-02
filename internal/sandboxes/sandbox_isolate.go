@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Ceruvia/grader/internal/helper"
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/files"
 )
@@ -52,7 +53,7 @@ func (s *IsolateSandbox) GetWallTimeLimit() int       { return s.WallTimeLimit }
 func (s *IsolateSandbox) GetMemoryLimit() int         { return s.MemoryLimit }
 func (s *IsolateSandbox) GetFileSizeLimit() int       { return s.FileSizeLimit }
 func (s *IsolateSandbox) GetMaxProcesses() int        { return s.MaxProcesses }
-func (s *IsolateSandbox) GetFilenamesInBox() []string { return s.Filenames }
+func (s *IsolateSandbox) GetFilenamesInBox() []string { return helper.RemoveDuplicates(s.Filenames) }
 
 func (s *IsolateSandbox) AddFile(filepath string) error {
 	if err := s.MoveFileToBox(filepath); err != nil {
