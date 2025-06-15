@@ -1,3 +1,4 @@
 test_ex
 tmp/
 tests/not_commited
+.env
