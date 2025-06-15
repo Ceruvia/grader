@@ -32,7 +32,8 @@ func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, erro
 	server := machinery.NewServer(cnf, broker, backend, lock)
 
 	tasksMap := map[string]interface{}{
-		"blackbox": ceruviaTasks.GradeBlackbox,
+		"blackbox":              ceruviaTasks.GradeBlackbox,
+		"blackbox_with_builder": ceruviaTasks.GradeBlackboxWithBuilder,
 	}
 
 	if err := server.RegisterTasks(tasksMap); err != nil {
