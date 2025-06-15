@@ -8,21 +8,9 @@ import (
 	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	"github.com/RichardKnop/machinery/v2/config"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
-	machineryLog "github.com/RichardKnop/machinery/v2/log"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	log "github.com/sirupsen/logrus"
 )
-
-func init() {
-	// Configure logrus globally
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
-	log.SetLevel(log.DebugLevel) // change as needed
-
-	// Override machinery logger with logrus
-	machineryLog.Set(log.StandardLogger())
-}
 
 func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, error) {
 	cnf := &config.Config{

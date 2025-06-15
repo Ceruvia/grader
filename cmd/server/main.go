@@ -2,9 +2,15 @@ package main
 
 import (
 	"github.com/Ceruvia/grader/internal/config"
+	"github.com/Ceruvia/grader/internal/logging"
 	"github.com/Ceruvia/grader/internal/machinery"
 	"github.com/Ceruvia/grader/internal/pool"
 )
+
+func init() {
+	cfg := config.GetAppConfig()
+	logging.InitLogger(cfg)
+}
 
 func main() {
 	cfg := config.GetAppConfig()
