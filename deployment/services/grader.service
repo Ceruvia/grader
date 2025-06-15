@@ -1,0 +1,19 @@
+[Unit]
+Description=Code Grader Service
+After=isolate.service dump-env.service
+Wants=isolate.service
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/docker_env
+WorkingDirectory=/grader
+ExecStartPre=/bin/bash -c "until systemctl is-active isolate.service; do sleep 1; done"
+ExecStartPre=/usr/local/bin/isolate --cg -b 999 --cleanup
+ExecStartPre=/usr/local/bin/isolate --cg -b 999 --init
+ExecStart=/usr/local/bin/grader
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
