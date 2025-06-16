@@ -10,7 +10,7 @@ install-dependency:
 	sudo apt-get update && \
 	sudo apt-get install -y --no-install-recommends \
 	  software-properties-common ca-certificates wget git libcap-dev libsystemd-dev pkg-config \
-	  build-essential zip openjdk-17-jdk python3 && \
+	  build-essential zip unzip openjdk-17-jdk python3 && \
 	sudo rm -rf /var/lib/apt/lists/*
 
 install-isolate:
@@ -23,10 +23,11 @@ install-isolate:
 build:
 	@echo "→ Building grader…"
 	go mod download && \
-	go build -o /usr/local/bin/grader cmd/server/main.go
+	go build -o grader cmd/server/main.go
 
 install:
-	sudo cp deployment/services/grader.service.service
+	sudo cp grader /usr/local/bin/grader
+	sudo cp deployment/services/grader.service /etc/systemd/system/
 
 clean:
 	sudo rm -rf grader
