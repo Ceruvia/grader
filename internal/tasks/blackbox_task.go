@@ -85,7 +85,7 @@ func GradeBlackboxWithBuilder(
 	inputTestcases, outputTestcases []string,
 	timeLimit, memoryLimit int,
 	language string,
-	compileScript, runScript string,
+	builder, compileScript, runScript string,
 ) (string, error) {
 	acquiredSandbox := pool.Pool.Acquire()
 	defer pool.Pool.Release(acquiredSandbox)
@@ -126,6 +126,7 @@ func GradeBlackboxWithBuilder(
 			},
 			Testcases: createTestcases(inputTestcases, outputTestcases),
 		},
+		Builder: builder,
 		CompileScript: compileScript,
 		RunScript: runScript,
 	}
