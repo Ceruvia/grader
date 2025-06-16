@@ -21,6 +21,6 @@ func InitLogger(cfg *config.ServerConfig) {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	// Optional: add hooks here (e.g. for Sentry)
+	log.AddHook(&GraderNameHook{GraderName: cfg.GraderName})
 	machineryLog.Set(log.StandardLogger())
 }
