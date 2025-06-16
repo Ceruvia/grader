@@ -4,9 +4,8 @@ import (
 	"os"
 
 	"github.com/Ceruvia/grader/internal/config"
-	log "github.com/sirupsen/logrus"
 	machineryLog "github.com/RichardKnop/machinery/v2/log"
-
+	log "github.com/sirupsen/logrus"
 )
 
 func InitLogger(cfg *config.ServerConfig) {
@@ -22,5 +21,6 @@ func InitLogger(cfg *config.ServerConfig) {
 	}
 
 	log.AddHook(&GraderNameHook{GraderName: cfg.GraderName})
+	log.AddHook(LokiHook(cfg))
 	machineryLog.Set(log.StandardLogger())
 }

@@ -4,7 +4,10 @@ go 1.24.2
 
 require github.com/urfave/cli v1.22.16
 
-require github.com/sirupsen/logrus v1.9.3 // indirect
+require (
+	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/yukitsune/lokirus v1.0.1 // indirect
+)
 
 require (
 	cloud.google.com/go v0.75.0 // indirect

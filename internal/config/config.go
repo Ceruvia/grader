@@ -14,11 +14,16 @@ type MessageQueueConfig struct {
 	ResultsExpireIn  int
 }
 
+type MonitoringConfig struct {
+	LokiURL string
+}
+
 type ServerConfig struct {
-	GraderName  string
-	GraderEnv   string
-	WorkerCount int
-	MQCfg       *MessageQueueConfig
+	GraderName    string
+	GraderEnv     string
+	WorkerCount   int
+	MQCfg         *MessageQueueConfig
+	MonitoringCfg *MonitoringConfig
 }
 
 func loadEnvFile() {
@@ -45,10 +50,15 @@ func GetAppConfig() *ServerConfig {
 		ResultsExpireIn:  env.GetInt("QUEUE_RESULT_TTL", 36000),
 	}
 
+	monitoringConfig := &MonitoringConfig{
+		LokiURL: env.GetString("MONITORING_LOKI_URL", ""),
+	}
+
 	return &ServerConfig{
-		GraderName:  graderName,
-		GraderEnv:   graderEnv,
-		WorkerCount: graderWorkerCount,
-		MQCfg:       mqConfig,
+		GraderName:    graderName,
+		GraderEnv:     graderEnv,
+		WorkerCount:   graderWorkerCount,
+		MQCfg:         mqConfig,
+		MonitoringCfg: monitoringConfig,
 	}
 }

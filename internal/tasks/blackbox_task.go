@@ -23,7 +23,7 @@ func GradeBlackbox(
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
-		"sandboxId": acquiredSandbox.BoxId,
+		"sandboxId":    acquiredSandbox.BoxId,
 	}).Debug("Acquired sandbox")
 
 	sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", acquiredSandbox.BoxId)
@@ -92,7 +92,7 @@ func GradeBlackboxWithBuilder(
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
-		"sandboxId": acquiredSandbox.BoxId,
+		"sandboxId":    acquiredSandbox.BoxId,
 	}).Debug("Acquired sandbox")
 
 	sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", acquiredSandbox.BoxId)
@@ -126,9 +126,9 @@ func GradeBlackboxWithBuilder(
 			},
 			Testcases: createTestcases(inputTestcases, outputTestcases),
 		},
-		Builder: builder,
+		Builder:       builder,
 		CompileScript: compileScript,
-		RunScript: runScript,
+		RunScript:     runScript,
 	}
 
 	log.WithFields(log.Fields{
