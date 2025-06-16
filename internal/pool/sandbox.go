@@ -57,3 +57,11 @@ func (p *SandboxPool) Close() {
 		sb.Cleanup()
 	}
 }
+
+func (p *SandboxPool) IdleCount() int {
+	return len(p.pool)
+}
+
+func (p *SandboxPool) BusyCount() int {
+	return cap(p.pool) - len(p.pool)
+}
