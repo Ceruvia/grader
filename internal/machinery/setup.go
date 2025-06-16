@@ -63,6 +63,7 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 		log.WithFields(log.Fields{
 			"task": signature.Name,
 			"uuid": signature.UUID,
+			"submissionId": signature.Args[0].Value,
 		}).Info("Starting task")
 	}
 
@@ -71,6 +72,7 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 		log.WithFields(log.Fields{
 			"task": signature.Name,
 			"uuid": signature.UUID,
+			"submissionId": signature.Args[0].Value,
 		}).Info("Finished task")
 	}
 
