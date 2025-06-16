@@ -31,9 +31,9 @@ RUN go mod download && \
     go build -o /usr/local/bin/grader cmd/server/main.go
 
 # 5) Enable your systemd units (make sure you COPY your .service files into /etc/systemd/system/)
-COPY deployment/services/grader.service /etc/systemd/system/
+COPY deployment/services/grader-docker.service /etc/systemd/system/
 COPY deployment/services/dump-env.service /etc/systemd/system/
-RUN systemctl enable isolate.service dump-env.service grader.service
+RUN systemctl enable isolate.service dump-env.service grader-docker.service
 
 VOLUME [ "/sys/fs/cgroup" ]
 
