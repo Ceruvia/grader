@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/Ceruvia/grader/internal/config"
-	"github.com/Ceruvia/grader/internal/logging"
+	"github.com/Ceruvia/grader/internal/monitoring/logging"
 	"github.com/Ceruvia/grader/internal/machinery"
 	"github.com/Ceruvia/grader/internal/pool"
 )

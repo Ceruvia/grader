@@ -61,8 +61,8 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 	// Before task execution
 	preTaskHandler := func(signature *tasks.Signature) {
 		log.WithFields(log.Fields{
-			"task": signature.Name,
-			"uuid": signature.UUID,
+			"task":         signature.Name,
+			"uuid":         signature.UUID,
 			"submissionId": signature.Args[0].Value,
 		}).Info("Starting task")
 	}
@@ -70,8 +70,8 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 	// After task execution
 	postTaskHandler := func(signature *tasks.Signature) {
 		log.WithFields(log.Fields{
-			"task": signature.Name,
-			"uuid": signature.UUID,
+			"task":         signature.Name,
+			"uuid":         signature.UUID,
 			"submissionId": signature.Args[0].Value,
 		}).Info("Finished task")
 	}
