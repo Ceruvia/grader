@@ -61,7 +61,7 @@ func RunMetricsPusher(cfg *config.ServerConfig) {
 		if err := writeAPI.WritePoint(context.Background(), p); err != nil {
 			log.WithError(err).Error("failed to write metrics to InfluxDB")
 		} else {
-			fmt.Printf("pushed metrics: idle=%.0f, busy=%.0f, cpu=%.1f%%, mem=%.1f%%\n",
+			fmt.Printf("pushed metrics:idle=%.0f;busy=%.0f;cpu=%.1f%%;mem=%.1f%%\n",
 				idle, busy, cpuPct, memPct)
 		}
 	}
