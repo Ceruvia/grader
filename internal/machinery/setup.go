@@ -12,17 +12,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, error) {
+func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 	cnf := &config.Config{
-		Broker:          cfg.BrokerURL,
-		DefaultQueue:    cfg.QueueName,
-		ResultBackend:   cfg.ResultBackendURL,
-		ResultsExpireIn: cfg.ResultsExpireIn,
+		Broker:          cfg.MQCfg.BrokerURL,
+		DefaultQueue:    cfg.MQCfg.QueueName,
+		ResultBackend:   cfg.MQCfg.ResultBackendURL,
+		ResultsExpireIn: cfg.MQCfg.ResultsExpireIn,
 		AMQP: &config.AMQPConfig{
 			Exchange:      "machinery_exchange",
 			ExchangeType:  "direct",
 			BindingKey:    "machinery_task",
-			PrefetchCount: 3,
+			PrefetchCount: cfg.WorkerCount,
 		},
 	}
 
@@ -45,7 +45,7 @@ func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, erro
 }
 
 func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
-	server, err := startServer(cfg.MQCfg)
+	server, err := startServer(cfg)
 	if err != nil {
 		log.WithError(err).Error("Failed to start Machinery server")
 		return err
