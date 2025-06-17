@@ -24,7 +24,7 @@ func RunMetricsPusher(cfg *config.ServerConfig) {
 	writeAPI := client.WriteAPIBlocking(org, bucket)
 	defer client.Close()
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for range ticker.C {
