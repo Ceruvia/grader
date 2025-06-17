@@ -1,0 +1,17 @@
+[Unit]
+Description=Code Grader Service
+After=isolate.service
+Wants=isolate.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/grader
+ExecStartPre=/usr/local/bin/isolate --cg -b 999 --cleanup
+ExecStartPre=/usr/local/bin/isolate --cg -b 999 --init
+ExecStart=/usr/local/bin/grader
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Capture Docker Environment Variables
+DefaultDependencies=no
+Before=grader.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "env | grep -E '^(GRADER_|QUEUE_)' > /etc/docker_env"
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
