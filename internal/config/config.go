@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"os"
 
 	"github.com/Ceruvia/grader/internal/helper/env"
 	"github.com/joho/godotenv"
@@ -43,7 +44,12 @@ func GetAppConfig() *ServerConfig {
 		loadEnvFile()
 	}
 
-	graderName := env.GetString("GRADER_NAME", "grader")
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "grader"
+	}
+
+	graderName := env.GetString("GRADER_NAME", hostname)
 	graderEnv := env.GetString("GRADER_ENV", "development")
 	graderWorkerCount := env.GetInt("GRADER_WORKER_COUNT", 20)
 
