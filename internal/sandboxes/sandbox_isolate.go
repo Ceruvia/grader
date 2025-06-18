@@ -176,6 +176,7 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 
 func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) SandboxExecutionResult {
 	command := s.BuildCommand(runCommand, redirectionFiles)
+	fmt.Println(command.BuildFullCommand())
 
 	cmd := exec.Command(command.Program, command.Args...)
 	_, err := cmd.CombinedOutput()
