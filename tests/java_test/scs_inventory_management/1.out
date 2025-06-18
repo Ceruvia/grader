@@ -1,0 +1,11 @@
+ADD ITEMS
+[Kaos(50000) : 10]
+[Tank Top(10000) : 5]
+[HP2030(1000000) : 20]
+[HP2256(2000000) : 15]
+REMOVE ITEMS
+[Kaos(50000) : 10]
+[Tank Top(10000) : 5]
+EMPTY ARRAY
+Inventory Kosong
+Inventory Kosong

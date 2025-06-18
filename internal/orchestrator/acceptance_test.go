@@ -2,6 +2,7 @@ package orchestrator_test
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -331,12 +332,19 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 			OriginalFileDir: "../../tests/makefile_test/java_makefile",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC"}),
 		},
+		{
+			Title:           "Praktikum/InventoryManagement",
+			Submisison:      createJavaWithMakefileSubmission("Main.class", "Main", 5, 1000, 102400),
+			OriginalFileDir: "../../tests/java_test/scs_inventory_management",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC"}),
+		},
 	}
 
 	for i, test := range GradingTests {
 		t.Run(test.Title, func(t *testing.T) {
 			t.Parallel()
 			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, JAVA_MAKEFILE_TEST_ID_PREFIX+i)
+			log.Println(test.Title, sbx.BoxDir)
 
 			if err != nil {
 				tester.AssertNotError(t, err)
@@ -344,7 +352,7 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 			if DEBUG {
 				fmt.Println(sbx.BoxDir)
 			} else {
-				defer sbx.Cleanup()
+				// defer sbx.Cleanup()
 			}
 
 			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
@@ -352,6 +360,8 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 			}
 
 			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			fmt.Printf("%+v\n", res)
 
 			assertGradingResult(t, res, test.ExpectedResult)
 		})
