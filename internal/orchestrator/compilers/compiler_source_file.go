@@ -24,7 +24,8 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 		Redirections:      sandboxes.CreateRedirectionFiles(sandbox.GetBoxdir()),
 	}
 
-	compiler.Sandbox.SetTimeLimitInMiliseconds(120 * 1000)  // 20 seconds
+	compiler.Sandbox.SetTimeLimitInMiliseconds(20 * 1000)  // 20 seconds
+	compiler.Sandbox.SetWallTimeLimitInMiliseconds(60 * 1000)  // 1 minute
 	compiler.Sandbox.SetMemoryLimitInKilobytes(1024 * 1024) // 1 GB
 
 	if err := compiler.Redirections.CreateNewMetaFileAndRedirect(CompilationMetaFilename); err != nil {

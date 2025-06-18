@@ -24,7 +24,7 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, languageOrBuilder langua
 	}
 
 	sbx.SetTimeLimitInMiliseconds(limits.TimeInMiliseconds)
-	sbx.SetWallTimeLimitInMiliseconds(limits.TimeInMiliseconds)
+	sbx.SetWallTimeLimitInMiliseconds(limits.TimeInMiliseconds + 5000)
 	sbx.SetMemoryLimitInKilobytes(limits.MemoryInKilobytes)
 
 	return &BlackboxGradingEngine{
