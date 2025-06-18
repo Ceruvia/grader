@@ -64,8 +64,8 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 	}
 
 	return SandboxExecutionResult{
-		Time:       time * 1000,
-		WallTime:   wallTime * 1000,
+		Time:       time,
+		WallTime:   wallTime,
 		Memory:     memory,
 		Status:     status,
 		ExitSignal: exitSignal,
