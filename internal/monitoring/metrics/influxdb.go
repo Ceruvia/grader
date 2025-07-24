@@ -8,27 +8,48 @@ import (
 	"github.com/Ceruvia/grader/internal/config"
 	"github.com/Ceruvia/grader/internal/pool"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 	log "github.com/sirupsen/logrus"
 )
 
-func RunMetricsPusher(cfg *config.ServerConfig) {
+var (
+	Client        influxdb2.Client
+	IsInitialized bool = false
+	writeAPI      api.WriteAPIBlocking
+	srvConfig     *config.ServerConfig
+)
+
+func InitMetricPusher(cfg *config.ServerConfig) {
 	url := cfg.MonitoringCfg.InfluxURL
 	token := cfg.MonitoringCfg.InfluxToken
 	org := cfg.MonitoringCfg.InfluxOrganization
 	bucket := cfg.MonitoringCfg.InfluxBucket
 
-	// Create the InfluxDB client and blocking write API
-	client := influxdb2.NewClient(url, token)
-	writeAPI := client.WriteAPIBlocking(org, bucket)
-	defer client.Close()
+	srvConfig = cfg
 
+	if url == "" {
+		IsInitialized = false
+		Client = nil
+		writeAPI = nil
+
+		log.Warn("Metrics NOT connected to InfluxDB")
+	} else {
+		IsInitialized = true
+		Client = influxdb2.NewClient(url, token)
+		writeAPI = Client.WriteAPIBlocking(org, bucket)
+
+		log.Info("Metrics connected to InfluxDB")
+	}
+}
+
+func RunMetricsPusher() {
+	defer Client.Close()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		// Collect metrics
 		idle := float64(pool.Pool.IdleCount())
 		busy := float64(pool.Pool.BusyCount())
 
@@ -42,12 +63,11 @@ func RunMetricsPusher(cfg *config.ServerConfig) {
 			memPct = vm.UsedPercent
 		}
 
-		// Build the point
 		p := influxdb2.NewPoint(
 			"grader_metrics", // measurement name
 			map[string]string{ // tags
-				"grader_name":        cfg.GraderName,
-				"grader_environment": cfg.GraderEnv,
+				"grader_name":        srvConfig.GraderName,
+				"grader_environment": srvConfig.GraderEnv,
 			},
 			map[string]interface{}{ // fields
 				"idle_workers":       idle,
@@ -61,8 +81,10 @@ func RunMetricsPusher(cfg *config.ServerConfig) {
 		if err := writeAPI.WritePoint(context.Background(), p); err != nil {
 			log.WithError(err).Error("failed to write metrics to InfluxDB")
 		} else {
-			fmt.Printf("pushed metrics:idle=%.0f;busy=%.0f;cpu=%.1f%%;mem=%.1f%%\n",
-				idle, busy, cpuPct, memPct)
+			if srvConfig.GraderEnv == "testing" {
+				fmt.Printf("pushed metrics:idle=%.0f;busy=%.0f;cpu=%.1f%%;mem=%.1f%%\n",
+					idle, busy, cpuPct, memPct)
+			}
 		}
 	}
 }

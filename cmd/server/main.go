@@ -10,20 +10,23 @@ import (
 
 func init() {
 	cfg := config.GetAppConfig()
+
 	logging.InitLogger(cfg)
+	logging.RunLogger()
+
+	metrics.InitMetricPusher(cfg)
+	if metrics.IsInitialized {
+		go metrics.RunMetricsPusher()
+	}
 }
 
 func main() {
 	cfg := config.GetAppConfig()
 
-	// setup sandbox pool
 	if err := pool.NewSandboxPool("/usr/local/bin/isolate", cfg.WorkerCount); err != nil {
 		panic(err)
 	}
 
-	go metrics.RunMetricsPusher(cfg)
-
-	// setup machinery job queue
 	if err := machinery.LaunchWorker(cfg); err != nil {
 		panic(err)
 	}
