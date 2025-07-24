@@ -18,11 +18,13 @@ import (
 const (
 	DEBUG = false
 
-	ISOLATE_PATH                 = "/usr/local/bin/isolate"
-	C_TEST_ID_PREFIX             = 900
-	C_MAKEFILE_TEST_ID_PREFIX    = 910
-	JAVA_TEST_ID_PREFIX          = 920
-	JAVA_MAKEFILE_TEST_ID_PREFIX = 930
+	ISOLATE_PATH                    = "/usr/local/bin/isolate"
+	C_TEST_ID_PREFIX                = 900
+	C_MAKEFILE_TEST_ID_PREFIX       = 910
+	JAVA_TEST_ID_PREFIX             = 920
+	JAVA_MAKEFILE_TEST_ID_PREFIX    = 930
+	HASKELL_TEST_ID_PREFIX          = 940
+	HASKELL_MAKEFILE_TEST_ID_PREFIX = 950
 )
 
 func TestGradingC(t *testing.T) {
@@ -362,6 +364,67 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
 
 			fmt.Printf("%+v\n", res)
+
+			assertGradingResult(t, res, test.ExpectedResult)
+		})
+	}
+}
+
+func TestGradingHaskellWithMakefile(t *testing.T) {
+	createHaskellWithMakefileSubmission := func(compileScript, runScript string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
+		return models.SubmissionWithBuilder{
+			Core: models.Core{
+				Language:  "Haskell",
+				Limits:    createLimits(timeInMilisecond, memoryInKilobyte),
+				Testcases: createTestcases(numOfTestcase),
+			},
+			Builder:       "Makefile",
+			RunScript:     runScript,
+			CompileScript: compileScript,
+		}
+	}
+
+	GradingTests := []struct {
+		Title           string
+		Submisison      models.Submission
+		OriginalFileDir string
+		ExpectedResult  evaluator.GradingResult
+	}{
+		{
+			Title:           "Success_Hitung Bensin",
+			Submisison:      createHaskellWithMakefileSubmission("haskell", "Main", 10, 1000, 65536),
+			OriginalFileDir: "../../tests/haskell_test/hitung_bensin",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
+		},
+		{
+			Title:           "Success_Jam Bangun",
+			Submisison:      createHaskellWithMakefileSubmission("haskell", "Main", 10, 1000, 65536),
+			OriginalFileDir: "../../tests/haskell_test/jam_bangun",
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "WA", "WA", "WA", "WA", "AC", "WA", "AC", "AC"}),
+		},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			t.Parallel()
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, HASKELL_MAKEFILE_TEST_ID_PREFIX+i)
+
+			sbx.AddAllowedDirectory("/home/abil")
+
+			if err != nil {
+				tester.AssertNotError(t, err)
+			}
+			if DEBUG {
+				fmt.Println(sbx.BoxDir)
+			} else {
+				defer sbx.Cleanup()
+			}
+
+			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+				t.Fatal(err)
+			}
+
+			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
 
 			assertGradingResult(t, res, test.ExpectedResult)
 		})
