@@ -24,9 +24,13 @@ type MonitoringConfig struct {
 }
 
 type ServerConfig struct {
-	GraderName    string
-	GraderEnv     string
-	WorkerCount   int
+	GraderName  string
+	GraderEnv   string
+	WorkerCount int
+
+	BackendAPIToken         string
+	BackendCallbackEndpoint string
+
 	MQCfg         *MessageQueueConfig
 	MonitoringCfg *MonitoringConfig
 }
@@ -53,6 +57,9 @@ func GetAppConfig() *ServerConfig {
 	graderEnv := env.GetString("GRADER_ENV", "development")
 	graderWorkerCount := env.GetInt("GRADER_WORKER_COUNT", 20)
 
+	backendAPIToken := env.GetString("BACKEND_API_TOKEN", "token")
+	backendCallbackEndpoint := env.GetString("BACKEND_CALLBACK_ENDPOINT", "http://localhost:8080/v1/submissions/{submission_id}/programming/grade-callback")
+
 	mqConfig := &MessageQueueConfig{
 		BrokerURL:        env.GetString("QUEUE_BROKER_URL", "amqp://guest:guest@localhost:5672/"),
 		ResultBackendURL: env.GetString("QUEUE_RESULT_URL", "amqp://guest:guest@localhost:5672/"),
@@ -69,10 +76,12 @@ func GetAppConfig() *ServerConfig {
 	}
 
 	return &ServerConfig{
-		GraderName:    graderName,
-		GraderEnv:     graderEnv,
-		WorkerCount:   graderWorkerCount,
-		MQCfg:         mqConfig,
-		MonitoringCfg: monitoringConfig,
+		GraderName:              graderName,
+		GraderEnv:               graderEnv,
+		WorkerCount:             graderWorkerCount,
+		BackendAPIToken:         backendAPIToken,
+		BackendCallbackEndpoint: backendCallbackEndpoint,
+		MQCfg:                   mqConfig,
+		MonitoringCfg:           monitoringConfig,
 	}
 }
