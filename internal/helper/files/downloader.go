@@ -5,7 +5,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
+
+var httpClient = &http.Client{
+	Timeout: 60 * time.Second,
+}
 
 func DownloadFile(filepath string, url string) error {
 	out, err := os.Create(filepath)
@@ -14,7 +19,7 @@ func DownloadFile(filepath string, url string) error {
 	}
 	defer out.Close()
 
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return err
 	}

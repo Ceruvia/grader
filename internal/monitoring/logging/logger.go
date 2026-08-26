@@ -21,6 +21,11 @@ func InitLogger(cfg *config.ServerConfig) {
 	}
 
 	log.AddHook(&GraderNameHook{GraderName: cfg.GraderName})
-	log.AddHook(LokiHook(cfg))
+
+	if cfg.MonitoringCfg.LoggingEnabled {
+		log.AddHook(LokiHook(cfg))
+		log.Info("Loki logging enabled")
+	}
+
 	machineryLog.Set(log.StandardLogger())
 }

@@ -5,32 +5,28 @@ import (
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	"github.com/RichardKnop/machinery/v2"
+	"github.com/RichardKnop/machinery/v2/backends/null"
+	gcppubsubbroker "github.com/RichardKnop/machinery/v2/brokers/gcppubsub"
 	"github.com/RichardKnop/machinery/v2/config"
-	"github.com/RichardKnop/machinery/v2/tasks"
-
-	amqpbackend "github.com/RichardKnop/machinery/v2/backends/amqp"
-	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
+	"github.com/RichardKnop/machinery/v2/tasks"
 )
 
 func main() {
 	cfg := ceruviaConfig.GetAppConfig()
 
+	brokerURL := fmt.Sprintf("gcppubsub://%s/%s", cfg.MQCfg.GCPProjectID, cfg.MQCfg.SubscriptionName)
+
 	cnf := &config.Config{
-		Broker:          cfg.MQCfg.BrokerURL,
-		DefaultQueue:    cfg.MQCfg.QueueName,
-		ResultBackend:   cfg.MQCfg.ResultBackendURL,
-		ResultsExpireIn: cfg.MQCfg.ResultsExpireIn,
-		AMQP: &config.AMQPConfig{
-			Exchange:      "machinery_exchange",
-			ExchangeType:  "direct",
-			BindingKey:    "machinery_task",
-			PrefetchCount: 3,
-		},
+		Broker:       brokerURL,
+		DefaultQueue: cfg.MQCfg.TopicName,
 	}
 
-	broker := amqpbroker.New(cnf)
-	backend := amqpbackend.New(cnf)
+	broker, err := gcppubsubbroker.New(cnf, cfg.MQCfg.GCPProjectID, cfg.MQCfg.SubscriptionName)
+	if err != nil {
+		panic(err)
+	}
+	backend := null.New()
 	lock := eagerlock.New()
 	server := machinery.NewServer(cnf, broker, backend, lock)
 
@@ -81,5 +77,5 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(asyncResult.Get(10))
+	fmt.Println("Task sent with UUID:", asyncResult.Signature.UUID)
 }

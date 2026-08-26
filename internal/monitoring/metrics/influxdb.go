@@ -14,6 +14,11 @@ import (
 )
 
 func RunMetricsPusher(cfg *config.ServerConfig) {
+	if !cfg.MonitoringCfg.MetricsEnabled {
+		log.Info("Metrics disabled, skipping metrics pusher")
+		return
+	}
+
 	url := cfg.MonitoringCfg.InfluxURL
 	token := cfg.MonitoringCfg.InfluxToken
 	org := cfg.MonitoringCfg.InfluxOrganization

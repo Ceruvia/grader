@@ -8,13 +8,19 @@ import (
 )
 
 type MessageQueueConfig struct {
-	BrokerURL        string
-	ResultBackendURL string
-	QueueName        string
-	ResultsExpireIn  int
+	GCPProjectID     string
+	SubscriptionName string
+	TopicName        string
+}
+
+type CallbackConfig struct {
+	BaseURL string
+	APIKey  string
 }
 
 type MonitoringConfig struct {
+	MetricsEnabled     bool
+	LoggingEnabled     bool
 	LokiURL            string
 	InfluxURL          string
 	InfluxToken        string
@@ -27,6 +33,7 @@ type ServerConfig struct {
 	GraderEnv     string
 	WorkerCount   int
 	MQCfg         *MessageQueueConfig
+	CallbackCfg   *CallbackConfig
 	MonitoringCfg *MonitoringConfig
 }
 
@@ -48,13 +55,19 @@ func GetAppConfig() *ServerConfig {
 	graderWorkerCount := env.GetInt("GRADER_WORKER_COUNT", 20)
 
 	mqConfig := &MessageQueueConfig{
-		BrokerURL:        env.GetString("QUEUE_BROKER_URL", "amqp://guest:guest@localhost:5672/"),
-		ResultBackendURL: env.GetString("QUEUE_RESULT_URL", "amqp://guest:guest@localhost:5672/"),
-		QueueName:        env.GetString("QUEUE_NAME", "ceruvia_submissions"),
-		ResultsExpireIn:  env.GetInt("QUEUE_RESULT_TTL", 36000),
+		GCPProjectID:     env.GetString("GCP_PROJECT_ID", ""),
+		SubscriptionName: env.GetString("PUBSUB_SUBSCRIPTION_NAME", ""),
+		TopicName:        env.GetString("PUBSUB_TOPIC_NAME", ""),
+	}
+
+	callbackConfig := &CallbackConfig{
+		BaseURL: env.GetString("CALLBACK_BASE_URL", ""),
+		APIKey:  env.GetString("CALLBACK_API_KEY", ""),
 	}
 
 	monitoringConfig := &MonitoringConfig{
+		MetricsEnabled:     env.GetBool("METRICS_ENABLED", false),
+		LoggingEnabled:     env.GetBool("LOGGING_ENABLED", false),
 		LokiURL:            env.GetString("MONITORING_LOKI_URL", ""),
 		InfluxURL:          env.GetString("MONITORING_INFLUX_URL", ""),
 		InfluxToken:        env.GetString("MONITORING_INFLUX_TOKEN", ""),
@@ -67,6 +80,7 @@ func GetAppConfig() *ServerConfig {
 		GraderEnv:     graderEnv,
 		WorkerCount:   graderWorkerCount,
 		MQCfg:         mqConfig,
+		CallbackCfg:   callbackConfig,
 		MonitoringCfg: monitoringConfig,
 	}
 }
