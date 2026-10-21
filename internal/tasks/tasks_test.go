@@ -18,8 +18,9 @@ func TestPrepareHelpers(t *testing.T) {
 		t.Run("Sandbox populated by unzipped files", func(t *testing.T) {
 			sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 400)
 
-			sbx.SetTimeLimitInMiliseconds(20 * 1000)   // 20 seconds
-			sbx.SetMemoryLimitInKilobytes(1024 * 1024) // 1 GB
+			sbx.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
+			sbx.SetWallTimeLimitInMiliseconds(60 * 1000) // 1 minute
+			sbx.SetMemoryLimitInKilobytes(1024 * 1024)   // 1 GB
 
 			tester.AssertNotError(t, err)
 
@@ -38,8 +39,9 @@ func TestPrepareHelpers(t *testing.T) {
 		t.Run("Returns error when link isn't a ZIP file", func(t *testing.T) {
 			sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 401)
 
-			sbx.SetTimeLimitInMiliseconds(20 * 1000)   // 20 seconds
-			sbx.SetMemoryLimitInKilobytes(1024 * 1024) // 1 GB
+			sbx.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
+			sbx.SetWallTimeLimitInMiliseconds(60 * 1000) // 1 minute
+			sbx.SetMemoryLimitInKilobytes(1024 * 1024)   // 1 GB
 
 			tester.AssertNotError(t, err)
 

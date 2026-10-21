@@ -11,8 +11,8 @@ func LokiHook(cfg *config.ServerConfig) *lokirus.LokiHook {
 		WithLevelMap(lokirus.LevelMap{logrus.PanicLevel: "critical"}).
 		WithFormatter(&logrus.JSONFormatter{}).
 		WithStaticLabels(lokirus.Labels{
-			"app":         cfg.GraderName,
-			"environment": cfg.GraderName,
+			"grader_app":         cfg.GraderName,
+			"grader_environment": cfg.GraderName,
 		})
 
 	return lokirus.NewLokiHookWithOpts(

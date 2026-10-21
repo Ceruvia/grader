@@ -24,8 +24,9 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 		Redirections:      sandboxes.CreateRedirectionFiles(sandbox.GetBoxdir()),
 	}
 
-	compiler.Sandbox.SetTimeLimitInMiliseconds(20 * 1000)   // 20 seconds
-	compiler.Sandbox.SetMemoryLimitInKilobytes(1024 * 1024) // 1 GB
+	compiler.Sandbox.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
+	compiler.Sandbox.SetWallTimeLimitInMiliseconds(60 * 1000) // 1 minute
+	compiler.Sandbox.SetMemoryLimitInKilobytes(1024 * 1024)   // 1 GB
 
 	if err := compiler.Redirections.CreateNewMetaFileAndRedirect(CompilationMetaFilename); err != nil {
 		return nil, err
@@ -48,6 +49,7 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 // Compiles the source files inside boxdir. Files are assumed to be in boxdir, and will be checked trough sandbox.
 func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) CompilerResult {
 	compileCommand := c.LanguageOrBuilder.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
+
 	result := c.Sandbox.Execute(compileCommand, c.Redirections)
 
 	if result.Status == sandboxes.ZERO_EXIT_CODE {

@@ -1,6 +1,11 @@
 package machinery
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"strings"
+
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
@@ -12,17 +17,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, error) {
+func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 	cnf := &config.Config{
-		Broker:          cfg.BrokerURL,
-		DefaultQueue:    cfg.QueueName,
-		ResultBackend:   cfg.ResultBackendURL,
-		ResultsExpireIn: cfg.ResultsExpireIn,
+		Broker:          cfg.MQCfg.BrokerURL,
+		DefaultQueue:    cfg.MQCfg.QueueName,
+		ResultBackend:   cfg.MQCfg.ResultBackendURL,
+		ResultsExpireIn: cfg.MQCfg.ResultsExpireIn,
 		AMQP: &config.AMQPConfig{
 			Exchange:      "machinery_exchange",
 			ExchangeType:  "direct",
 			BindingKey:    "machinery_task",
-			PrefetchCount: 3,
+			PrefetchCount: cfg.WorkerCount,
 		},
 	}
 
@@ -45,7 +50,7 @@ func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, erro
 }
 
 func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
-	server, err := startServer(cfg.MQCfg)
+	server, err := startServer(cfg)
 	if err != nil {
 		log.WithError(err).Error("Failed to start Machinery server")
 		return err
@@ -69,6 +74,41 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 
 	// After task execution
 	postTaskHandler := func(signature *tasks.Signature) {
+		submissionId := signature.Args[0].Value.(string)
+
+		// Send taskId to BE's callback endpoint
+		callbackUrl := strings.Replace(cfg.BackendCallbackEndpoint, "{submission_id}", submissionId, -1)
+		callbackToken := cfg.BackendAPIToken
+
+		payload, err := json.Marshal(struct {
+			TaskId string `json:"task_id"`
+		}{
+			TaskId: signature.UUID,
+		})
+
+		r, err := http.NewRequest("POST", callbackUrl, bytes.NewBuffer(payload))
+		if err != nil {
+			log.WithFields(log.Fields{
+				"task":         signature.Name,
+				"uuid":         signature.UUID,
+				"submissionId": signature.Args[0].Value,
+			}).Error("Error while creating callback request: ", err)
+		}
+		r.Header.Add("Content-Type", "application/json")
+		r.Header.Add("X-API-Key", callbackToken)
+
+		client := &http.Client{}
+		res, err := client.Do(r)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"task":         signature.Name,
+				"uuid":         signature.UUID,
+				"submissionId": signature.Args[0].Value,
+			}).Error("Error while sending callback request: ", err)
+		}
+
+		defer res.Body.Close()
+
 		log.WithFields(log.Fields{
 			"task":         signature.Name,
 			"uuid":         signature.UUID,
