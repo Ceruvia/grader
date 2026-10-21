@@ -1,41 +1,35 @@
 package machinery
 
 import (
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
-	"github.com/RichardKnop/machinery/v2/backends/null"
-	gcppubsubbroker "github.com/RichardKnop/machinery/v2/brokers/gcppubsub"
+	amqpbackend "github.com/RichardKnop/machinery/v2/backends/amqp"
+	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	"github.com/RichardKnop/machinery/v2/config"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	log "github.com/sirupsen/logrus"
 )
 
-func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
-	brokerURL := fmt.Sprintf("gcppubsub://%s/%s", cfg.MQCfg.GCPProjectID, cfg.MQCfg.SubscriptionName)
-
+func startServer(cfg *ceruviaConfig.MessageQueueConfig) (*machinery.Server, error) {
 	cnf := &config.Config{
-		Broker:       brokerURL,
-		DefaultQueue: cfg.MQCfg.TopicName,
+		Broker:          cfg.BrokerURL,
+		DefaultQueue:    cfg.QueueName,
+		ResultBackend:   cfg.ResultBackendURL,
+		ResultsExpireIn: cfg.ResultsExpireIn,
+		AMQP: &config.AMQPConfig{
+			Exchange:      "machinery_exchange",
+			ExchangeType:  "direct",
+			BindingKey:    "machinery_task",
+			PrefetchCount: 3,
+		},
 	}
 
-	broker, err := gcppubsubbroker.New(cnf, cfg.MQCfg.GCPProjectID, cfg.MQCfg.SubscriptionName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCP Pub/Sub broker: %w", err)
-	}
-	backend := null.New() // No result backend needed - results sent via callback
+	broker := amqpbroker.New(cnf)
+	backend := amqpbackend.New(cnf)
 	lock := eagerlock.New()
 	server := machinery.NewServer(cnf, broker, backend, lock)
-
-	// Initialize callback config for tasks
-	ceruviaTasks.InitCallback(cfg.CallbackCfg)
 
 	tasksMap := map[string]interface{}{
 		"blackbox":              ceruviaTasks.GradeBlackbox,
@@ -51,7 +45,7 @@ func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 }
 
 func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
-	server, err := startServer(cfg)
+	server, err := startServer(cfg.MQCfg)
 	if err != nil {
 		log.WithError(err).Error("Failed to start Machinery server")
 		return err
@@ -86,37 +80,6 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 	worker.SetErrorHandler(errorHandler)
 	worker.SetPreTaskHandler(preTaskHandler)
 
-	// Setup graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-
-	// Start worker in goroutine
-	errorsChan := make(chan error, 1)
-	go func() {
-		log.WithFields(log.Fields{
-			"worker_count":      cfg.WorkerCount,
-			"gcp_project_id":    cfg.MQCfg.GCPProjectID,
-			"subscription_name": cfg.MQCfg.SubscriptionName,
-		}).Info("Launching worker...")
-		errorsChan <- worker.Launch()
-	}()
-
-	// Wait for shutdown signal or worker error
-	select {
-	case <-quit:
-		log.Info("Received shutdown signal, gracefully stopping worker...")
-		worker.Quit()
-
-		// Wait for tasks to complete with timeout
-		done := make(chan struct{})
-		go func() {
-			time.Sleep(30 * time.Second) // Grace period for tasks to complete
-			close(done)
-		}()
-		<-done
-		log.Info("Worker stopped gracefully")
-		return nil
-	case err := <-errorsChan:
-		return err
-	}
+	log.WithField("worker_count", cfg.WorkerCount).Info("Launching worker...")
+	return worker.Launch()
 }
