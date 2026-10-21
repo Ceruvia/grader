@@ -18,11 +18,7 @@ func GradeBlackbox(
 	language string,
 	mainSourceFilename string,
 ) (string, error) {
-	acquiredSandbox, err := pool.Pool.Acquire()
-	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to acquire sandbox")
-		return "", err
-	}
+	acquiredSandbox := pool.Pool.Acquire()
 	defer pool.Pool.Release(acquiredSandbox)
 
 	log.WithFields(log.Fields{
@@ -35,11 +31,6 @@ func GradeBlackbox(
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to create isolate sandbox")
 		return "", err
 	}
-	defer func() {
-		if cleanupErr := sbx.Cleanup(); cleanupErr != nil {
-			log.WithField("submissionId", submissionId).WithError(cleanupErr).Error("Failed to cleanup sandbox")
-		}
-	}()
 
 	if err := DownloadFileToSandbox(sbx, "grader.zip", graderFilesURL); err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
@@ -78,23 +69,14 @@ func GradeBlackbox(
 	b, err := json.Marshal(result)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to marshal grading result")
-		return "", err
+		return err.Error(), err
 	}
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
-	}).Debug("Finish grading, sending callback")
+	}).Debug("Finish grading")
 
-	if err := SendCallback(submissionId, string(b)); err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to send callback")
-		return "", err
-	}
-
-	log.WithFields(log.Fields{
-		"submissionId": submissionId,
-	}).Debug("Callback sent successfully")
-
-	return "", nil
+	return string(b), nil
 }
 
 func GradeBlackboxWithBuilder(
@@ -105,11 +87,7 @@ func GradeBlackboxWithBuilder(
 	language string,
 	builder, compileScript, runScript string,
 ) (string, error) {
-	acquiredSandbox, err := pool.Pool.Acquire()
-	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to acquire sandbox")
-		return "", err
-	}
+	acquiredSandbox := pool.Pool.Acquire()
 	defer pool.Pool.Release(acquiredSandbox)
 
 	log.WithFields(log.Fields{
@@ -122,11 +100,6 @@ func GradeBlackboxWithBuilder(
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to create isolate sandbox")
 		return "", err
 	}
-	defer func() {
-		if cleanupErr := sbx.Cleanup(); cleanupErr != nil {
-			log.WithField("submissionId", submissionId).WithError(cleanupErr).Error("Failed to cleanup sandbox")
-		}
-	}()
 
 	if err := DownloadFileToSandbox(sbx, "grader.zip", graderFilesURL); err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
@@ -167,21 +140,12 @@ func GradeBlackboxWithBuilder(
 	b, err := json.Marshal(result)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to marshal grading result")
-		return "", err
+		return err.Error(), err
 	}
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
-	}).Debug("Finish grading, sending callback")
+	}).Debug("Finish grading")
 
-	if err := SendCallback(submissionId, string(b)); err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to send callback")
-		return "", err
-	}
-
-	log.WithFields(log.Fields{
-		"submissionId": submissionId,
-	}).Debug("Callback sent successfully")
-
-	return "", nil
+	return string(b), nil
 }

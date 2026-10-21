@@ -2,14 +2,11 @@ package pool
 
 import (
 	"errors"
-	"time"
 
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
 var Pool *SandboxPool
-
-var ErrAcquireTimeout = errors.New("timeout waiting for sandbox")
 
 type SandboxPool struct {
 	pool chan *sandboxes.IsolateSandbox
@@ -33,20 +30,10 @@ func NewSandboxPool(isolatePath string, size int) error {
 	return nil
 }
 
-// Acquire blocks until one sandbox is available or timeout (300s) is reached.
+// Acquire blocks until one sandbox is available, then returns it.
 // While a sandbox is "checked out," no other goroutine can acquire that same instance.
-func (p *SandboxPool) Acquire() (*sandboxes.IsolateSandbox, error) {
-	return p.AcquireWithTimeout(300 * time.Second)
-}
-
-// AcquireWithTimeout blocks until one sandbox is available or timeout is reached.
-func (p *SandboxPool) AcquireWithTimeout(timeout time.Duration) (*sandboxes.IsolateSandbox, error) {
-	select {
-	case sb := <-p.pool:
-		return sb, nil
-	case <-time.After(timeout):
-		return nil, ErrAcquireTimeout
-	}
+func (p *SandboxPool) Acquire() *sandboxes.IsolateSandbox {
+	return <-p.pool
 }
 
 // TryAcquire attempts to get a sandbox without blocking. If none is available,
