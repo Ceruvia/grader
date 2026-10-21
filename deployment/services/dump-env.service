@@ -5,7 +5,7 @@ Before=grader.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "env | grep -E '^(GRADER_|QUEUE_)' > /etc/docker_env"
+ExecStart=/bin/bash -c "tr '\\0' '\\n' < /proc/1/environ | grep -E '^(GRADER_|QUEUE_|BACKEND_|MONITORING_|LOAD_DOTENV=)' > /etc/docker_env"
 RemainAfterExit=true
 
 [Install]
