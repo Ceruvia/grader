@@ -1,9 +1,8 @@
 package machinery
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"net/http"
 	"strings"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
@@ -74,46 +73,40 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 
 	// After task execution
 	postTaskHandler := func(signature *tasks.Signature) {
-		submissionId := signature.Args[0].Value.(string)
+		fields := log.Fields{"task": signature.Name, "uuid": signature.UUID}
+		defer func() {
+			if r := recover(); r != nil {
+				log.WithFields(fields).Errorf("Recovered panic in post task handler: %v", r)
+			}
+		}()
 
-		// Send taskId to BE's callback endpoint
-		callbackUrl := strings.Replace(cfg.BackendCallbackEndpoint, "{submission_id}", submissionId, -1)
-		callbackToken := cfg.BackendAPIToken
+		if len(signature.Args) == 0 {
+			log.WithFields(fields).Error("Task has no submission id, callback skipped")
+			return
+		}
+		submissionId, ok := signature.Args[0].Value.(string)
+		if !ok {
+			log.WithFields(fields).Errorf("Task submission id has type %T, callback skipped", signature.Args[0].Value)
+			return
+		}
+		fields["submission_id"] = submissionId
 
 		payload, err := json.Marshal(struct {
 			TaskId string `json:"task_id"`
-		}{
-			TaskId: signature.UUID,
-		})
-
-		r, err := http.NewRequest("POST", callbackUrl, bytes.NewBuffer(payload))
+		}{TaskId: signature.UUID})
 		if err != nil {
-			log.WithFields(log.Fields{
-				"task":         signature.Name,
-				"uuid":         signature.UUID,
-				"submissionId": signature.Args[0].Value,
-			}).Error("Error while creating callback request: ", err)
-		}
-		r.Header.Add("Content-Type", "application/json")
-		r.Header.Add("X-API-Key", callbackToken)
-
-		client := &http.Client{}
-		res, err := client.Do(r)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"task":         signature.Name,
-				"uuid":         signature.UUID,
-				"submissionId": signature.Args[0].Value,
-			}).Error("Error while sending callback request: ", err)
+			log.WithFields(fields).WithError(err).Error("Failed to encode callback payload")
+			return
 		}
 
-		defer res.Body.Close()
+		callbackUrl := strings.ReplaceAll(cfg.BackendCallbackEndpoint, "{submission_id}", submissionId)
+		if err := postCallback(context.Background(), callbackClient, callbackUrl, cfg.BackendAPIToken, payload, callbackBackoff); err != nil {
+			// The backend sweeper fails the submission and refunds the try.
+			log.WithFields(fields).WithError(err).Error("Callback failed, submission left pending")
+			return
+		}
 
-		log.WithFields(log.Fields{
-			"task":         signature.Name,
-			"uuid":         signature.UUID,
-			"submissionId": signature.Args[0].Value,
-		}).Info("Finished task")
+		log.WithFields(fields).Info("Finished task")
 	}
 
 	worker.SetPostTaskHandler(postTaskHandler)
