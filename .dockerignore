@@ -1,0 +1,20 @@
+# Secrets must never enter the build context
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+.github
+
+# Local noise
+tmp/
+tests/not_commited
+.idea
+.omp
+.vscode
+.DS_Store
+*.log
+Dockerfile
+.dockerignore
+Makefile
