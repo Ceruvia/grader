@@ -43,7 +43,7 @@ func TestGetCompilationCommand(t *testing.T) {
 
 func TestGetCompilationCommandReadsTeacherMakefile(t *testing.T) {
 	got := MakefileBuilder.GetCompilationCommand("haskell", "makefile")
-	tester.AssertDeep(t, got.BuildFullCommand(), "/usr/bin/make -f makefile haskell")
+	tester.AssertDeep(t, got.BuildFullCommand(), "/usr/bin/make -B -f makefile haskell")
 }
 
 func TestGetExecutionCommand(t *testing.T) {

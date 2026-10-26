@@ -21,6 +21,9 @@ import (
 // symlinkEntry marks an archive entry as a symlink to the rest of the content, as `zip --symlinks` stores it.
 const symlinkEntry = "symlink:"
 
+// prebuiltEntry marks an executable archive entry whose mtime is a day in the future.
+const prebuiltEntry = "prebuilt:"
+
 func archiveServer(t *testing.T, archives map[string]map[string]string) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -32,6 +35,10 @@ func archiveServer(t *testing.T, archives map[string]map[string]string) *httptes
 			if target, ok := strings.CutPrefix(content, symlinkEntry); ok {
 				header.SetMode(os.ModeSymlink | 0777)
 				content = target
+			} else if body, ok := strings.CutPrefix(content, prebuiltEntry); ok {
+				header.SetMode(0755)
+				header.Modified = time.Now().Add(24 * time.Hour)
+				content = body
 			}
 			entry, err := zw.CreateHeader(header)
 			if err != nil {
