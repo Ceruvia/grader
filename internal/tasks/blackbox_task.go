@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 
@@ -36,13 +37,15 @@ func GradeBlackbox(
 	taskDir := sandboxes.TaskDir(acquiredSandbox.BoxId)
 	defer os.RemoveAll(taskDir)
 	defer sbx.Cleanup()
-	testcases, err := prepareGraderFiles(sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
+	// Machinery does not give tasks a cancellable context. The 30 s download client and the unzip limits bound each step.
+	ctx := context.Background()
+	testcases, err := prepareGraderFiles(ctx, sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
 		return "", err
 	}
 
-	if err := DownloadFileToSandbox(sbx, "submission.zip", submissionFilesURL); err != nil {
+	if err := DownloadFileToSandbox(ctx, sbx, "submission.zip", submissionFilesURL); err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
 		return "", err
 	}
@@ -109,13 +112,15 @@ func GradeBlackboxWithBuilder(
 	taskDir := sandboxes.TaskDir(acquiredSandbox.BoxId)
 	defer os.RemoveAll(taskDir)
 	defer sbx.Cleanup()
-	testcases, err := prepareGraderFiles(sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
+	// Machinery does not give tasks a cancellable context. The 30 s download client and the unzip limits bound each step.
+	ctx := context.Background()
+	testcases, err := prepareGraderFiles(ctx, sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
 		return "", err
 	}
 
-	if err := DownloadFileToSandbox(sbx, "submission.zip", submissionFilesURL); err != nil {
+	if err := DownloadFileToSandbox(ctx, sbx, "submission.zip", submissionFilesURL); err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
 		return "", err
 	}

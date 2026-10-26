@@ -1,10 +1,13 @@
 package tasks
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
@@ -21,7 +24,7 @@ func TestPrepareHelpers(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = sbx.Cleanup() })
 		taskDir := filepath.Join(t.TempDir(), "task")
-		testcases, err := prepareGraderFiles(sbx, taskDir, server.URL+"/grader.zip", []string{"1.in"}, []string{"1.out"})
+		testcases, err := prepareGraderFiles(context.Background(), sbx, taskDir, server.URL+"/grader.zip", []string{"1.in"}, []string{"1.out"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,18 +58,36 @@ func TestPrepareHelpers(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = sbx.Cleanup() })
-		sbx.SetTimeLimitInMiliseconds(20000)
-		sbx.SetWallTimeLimitInMiliseconds(60000)
-		sbx.SetMemoryLimitInKilobytes(1024 * 1024)
-		if err := DownloadFileToSandbox(sbx, "submission.zip", server.URL+"/submission.zip"); err != nil {
+		recorder := &commandRecorder{IsolateSandbox: sbx}
+		if err := DownloadFileToSandbox(context.Background(), recorder, "submission.zip", server.URL+"/submission.zip"); err != nil {
 			t.Fatal(err)
+		}
+		if len(recorder.commands) != 1 {
+			t.Fatalf("expected one unzip run, got %q", recorder.commands)
+		}
+		// CreateIsolateSandbox allows 50 processes, so isolate takes the memory limit as --cg-mem.
+		for _, flag := range []string{" -t10 ", " -w20 ", " --cg-mem=262144 ", " -k262144 "} {
+			if !strings.Contains(recorder.commands[0], flag) {
+				t.Errorf("unzip command %q lacks limit %q", recorder.commands[0], strings.TrimSpace(flag))
+			}
 		}
 		got, err := sbx.GetFile("main.c")
 		if err != nil || string(got) != "int main(void) { return 0; }\n" {
 			t.Fatalf("submission source = %q, error = %v", got, err)
 		}
-		if err := DownloadFileToSandbox(sbx, "invalid.zip", server.URL+"/missing.zip"); err == nil {
+		if err := DownloadFileToSandbox(context.Background(), sbx, "invalid.zip", server.URL+"/missing.zip"); err == nil {
 			t.Error("expected error for missing archive")
 		}
 	})
+}
+
+// commandRecorder runs the real isolate sandbox and keeps each isolate command line.
+type commandRecorder struct {
+	*sandboxes.IsolateSandbox
+	commands []string
+}
+
+func (r *commandRecorder) Execute(run command.CommandBuilder, red sandboxes.RedirectionFiles) sandboxes.SandboxExecutionResult {
+	r.commands = append(r.commands, r.BuildCommand(run, red).BuildFullCommand())
+	return r.IsolateSandbox.Execute(run, red)
 }

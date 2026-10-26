@@ -16,13 +16,26 @@ import (
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
-func DownloadFileToSandbox(sbx sandboxes.Sandbox, filename, url string) error {
-	if err := files.DownloadFile(sbx.GetBoxdir()+"/"+filename, url); err != nil {
+// Limits for the in-box submission unzip. Compile and run set their own limits afterwards.
+const (
+	unzipTimeLimitMs     = 10000
+	unzipWallTimeLimitMs = 20000
+	unzipMemoryLimitKb   = 262144
+)
+
+func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename, url string) error {
+	if err := files.DownloadFile(ctx, sbx.GetBoxdir()+"/"+filename, url); err != nil {
 		return err
 	}
 
 	red := sandboxes.CreateRedirectionFiles(sbx)
-	red.CreateNewMetaFileAndRedirect("_" + files.RemoveExtention(filename) + "_unzip.meta")
+	if err := red.CreateNewMetaFileAndRedirect("_" + files.RemoveExtention(filename) + "_unzip.meta"); err != nil {
+		return err
+	}
+
+	sbx.SetTimeLimitInMiliseconds(unzipTimeLimitMs)
+	sbx.SetWallTimeLimitInMiliseconds(unzipWallTimeLimitMs)
+	sbx.SetMemoryLimitInKilobytes(unzipMemoryLimitKb)
 
 	result := sbx.Execute(
 		*command.GetCommandBuilder("/usr/bin/unzip").AddArgs("-q").AddArgs(filename),
@@ -45,19 +58,19 @@ func DownloadFileToSandbox(sbx sandboxes.Sandbox, filename, url string) error {
 	return nil
 }
 
-func prepareGraderFiles(sbx sandboxes.Sandbox, taskDir, url string, inputs, outputs []string) ([]models.Testcase, error) {
+func prepareGraderFiles(ctx context.Context, sbx sandboxes.Sandbox, taskDir, url string, inputs, outputs []string) ([]models.Testcase, error) {
 	if err := os.RemoveAll(taskDir); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(taskDir, 0700); err != nil {
 		return nil, err
 	}
-	if err := files.DownloadFile(filepath.Join(taskDir, "grader.zip"), url); err != nil {
+	if err := files.DownloadFile(ctx, filepath.Join(taskDir, "grader.zip"), url); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	unzipCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/usr/bin/unzip", "-q", "-o", "grader.zip", "-d", filepath.Join(taskDir, "files"))
+	cmd := exec.CommandContext(unzipCtx, "/usr/bin/unzip", "-q", "-o", "grader.zip", "-d", filepath.Join(taskDir, "files"))
 	cmd.Dir = taskDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("unzip grader files: %w: %s", err, output)
