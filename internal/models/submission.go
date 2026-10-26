@@ -72,6 +72,7 @@ type GradingLimit struct {
 	MemoryInKilobytes int
 }
 type Testcase struct {
-	InputFilename  string
-	OutputFilename string
+	InputFilename      string
+	OutputFilename     string
+	ExpectedOutputPath string
 }

@@ -122,7 +122,7 @@ func TestGradingC(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -211,7 +211,7 @@ func TestGradingCWithMakefile(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -283,7 +283,7 @@ func TestGradingJava(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -364,7 +364,7 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 				// defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -427,7 +427,7 @@ func TestGradingHaskellWithMakefile(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -517,14 +517,22 @@ func createTestcases(numOfTestcase int) []models.Testcase {
 	return tc
 }
 
-func moveToSandbox(sandbox sandboxes.Sandbox, srcDir string) error {
+func prepareSubmission(sandbox sandboxes.Sandbox, submission models.Submission, srcDir string) error {
+	absDir, err := filepath.Abs(srcDir)
+	if err != nil {
+		return err
+	}
+	testcases := submission.GetTestcases()
+	for i := range testcases {
+		testcases[i].ExpectedOutputPath = filepath.Join(absDir, testcases[i].OutputFilename)
+	}
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if entry.Type().IsRegular() {
+		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) != ".out" {
 			srcPath := filepath.Join(srcDir, entry.Name())
 			if err := sandbox.AddFile(srcPath); err != nil {
 				return err

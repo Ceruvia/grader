@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/helper/command"
@@ -453,7 +454,7 @@ func TestIsolate(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				red := sandboxes.CreateRedirectionFiles(sbx.BoxDir)
+				red := sandboxes.CreateRedirectionFiles(sbx)
 				err = red.CreateNewMetaFileAndRedirect("comp.meta")
 				if err != nil {
 					t.Fatal(err)
@@ -481,7 +482,7 @@ func TestIsolate(t *testing.T) {
 				}
 
 				if !checkEmptyCommand(test.SecondRunCommand) {
-					secondRed := sandboxes.CreateRedirectionFiles(sbx.BoxDir)
+					secondRed := sandboxes.CreateRedirectionFiles(sbx)
 					err = secondRed.CreateNewMetaFileAndRedirect("run.meta")
 					if err != nil {
 						t.Fatal(err)
@@ -510,25 +511,54 @@ func TestIsolate(t *testing.T) {
 
 func TestRedirections(t *testing.T) {
 	t.Run("Creation And Redirection", func(t *testing.T) {
-		t.Run("Create and redirects meta file", func(t *testing.T) {
-			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../tests/sandbox",
-			}
+		t.Run("Create and redirects meta file outside the box", func(t *testing.T) {
+			boxdir := t.TempDir()
+			metaDir := filepath.Join(t.TempDir(), "meta")
+			red := sandboxes.RedirectionFiles{Boxdir: boxdir, MetaDir: metaDir}
 			err := red.CreateNewMetaFileAndRedirect("_isolate.meta")
-			defer deleteFile("../../tests/sandbox/_isolate.meta")
-
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../tests/sandbox/_isolate.meta"); err != nil {
-				t.Fatalf("file was not created: %q", err.Error())
+			info, err := os.Stat(metaDir)
+			if err != nil || info.Mode().Perm() != 0700 {
+				t.Fatalf("meta dir must exist with mode 0700, got %v, %v", info, err)
+			}
+			if _, err := os.Stat(filepath.Join(boxdir, "_isolate.meta")); !os.IsNotExist(err) {
+				t.Fatalf("meta file must not be in the box, stat error = %v", err)
 			}
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:       "../../tests/sandbox",
-				MetaFilename: "../../tests/sandbox/_isolate.meta",
+				Boxdir:       boxdir,
+				MetaDir:      metaDir,
+				MetaFilename: filepath.Join(metaDir, "_isolate.meta"),
 			}
-
 			tester.AssertDeep(t, red, want)
+		})
+
+		t.Run("Replaces a planted symlink instead of following it", func(t *testing.T) {
+			boxdir := t.TempDir()
+			hostDir := t.TempDir()
+			red := sandboxes.RedirectionFiles{Boxdir: boxdir, MetaDir: filepath.Join(hostDir, "meta")}
+			creators := map[string]func(string) error{
+				"stdin":  red.CreateNewStandardInputFileAndRedirect,
+				"stdout": red.CreateNewStandardOutputFileAndRedirect,
+				"stderr": red.CreateNewStandardErrorFileAndRedirect,
+			}
+			for name, create := range creators {
+				target := filepath.Join(hostDir, name+"-target")
+				if err := os.Symlink(target, filepath.Join(boxdir, name)); err != nil {
+					t.Fatal(err)
+				}
+				if err := create(name); err != nil {
+					t.Fatalf("%s: %v", name, err)
+				}
+				if _, err := os.Lstat(target); !os.IsNotExist(err) {
+					t.Fatalf("%s: host file %s was created through the symlink", name, target)
+				}
+				info, err := os.Lstat(filepath.Join(boxdir, name))
+				if err != nil || !info.Mode().IsRegular() {
+					t.Fatalf("%s: expected a fresh regular file, got %v, %v", name, info, err)
+				}
+			}
 		})
 
 		t.Run("Create and redirects standard input file", func(t *testing.T) {
@@ -596,22 +626,6 @@ func TestRedirections(t *testing.T) {
 	})
 
 	t.Run("Setters", func(t *testing.T) {
-		t.Run("RedirectMeta", func(t *testing.T) {
-			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../tests/copy/source",
-			}
-			err := red.RedirectMeta("file.c")
-
-			tester.AssertNotError(t, err)
-
-			want := sandboxes.RedirectionFiles{
-				Boxdir:       "../../tests/copy/source",
-				MetaFilename: "../../tests/copy/source/file.c",
-			}
-
-			tester.AssertDeep(t, red, want)
-		})
-
 		t.Run("RedirectStandardInput", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
 				Boxdir: "../../tests/copy/source",

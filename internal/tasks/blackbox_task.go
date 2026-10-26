@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"encoding/json"
+	"os"
 
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator"
@@ -32,7 +33,11 @@ func GradeBlackbox(
 		return "", err
 	}
 
-	if err := DownloadFileToSandbox(sbx, "grader.zip", graderFilesURL); err != nil {
+	taskDir := sandboxes.TaskDir(acquiredSandbox.BoxId)
+	defer os.RemoveAll(taskDir)
+	defer sbx.Cleanup()
+	testcases, err := prepareGraderFiles(sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
+	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
 		return "", err
 	}
@@ -55,7 +60,7 @@ func GradeBlackbox(
 				TimeInMiliseconds: timeLimit,
 				MemoryInKilobytes: memoryLimit,
 			},
-			Testcases: createTestcases(inputTestcases, outputTestcases),
+			Testcases: testcases,
 		},
 		MainSourceFilename: mainSourceFilename,
 	}
@@ -101,7 +106,11 @@ func GradeBlackboxWithBuilder(
 		return "", err
 	}
 
-	if err := DownloadFileToSandbox(sbx, "grader.zip", graderFilesURL); err != nil {
+	taskDir := sandboxes.TaskDir(acquiredSandbox.BoxId)
+	defer os.RemoveAll(taskDir)
+	defer sbx.Cleanup()
+	testcases, err := prepareGraderFiles(sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
+	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
 		return "", err
 	}
@@ -124,7 +133,7 @@ func GradeBlackboxWithBuilder(
 				TimeInMiliseconds: timeLimit,
 				MemoryInKilobytes: memoryLimit,
 			},
-			Testcases: createTestcases(inputTestcases, outputTestcases),
+			Testcases: testcases,
 		},
 		Builder:       builder,
 		CompileScript: compileScript,

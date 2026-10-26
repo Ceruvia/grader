@@ -28,7 +28,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			tester.AssertDeep(t, compiler.GetSandbox().GetMemoryLimit(), 1024*1024)
 			tester.AssertDeep(t, compiler.GetRedirections().StandardErrorFilename, compilers.CompilationOutputFilename)
 			tester.AssertDeep(t, compiler.GetRedirections().StandardOutputFilename, compilers.CompilationOutputFilename)
-			tester.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/local/lib/isolate/200/box/"+compilers.CompilationMetaFilename)
+			tester.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/lib/grader/tasks/200/meta/"+compilers.CompilationMetaFilename)
 		})
 
 		t.Run("Returns error when language provide is Nil", func(t *testing.T) {

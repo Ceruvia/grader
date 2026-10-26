@@ -58,7 +58,7 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 	var gradingResults []evaluator.EngineRunResult
 
 	for _, tc := range submission.GetTestcases() {
-		runResult, _ := engine.Run(tc.InputFilename, tc.OutputFilename)
+		runResult, _ := engine.Run(tc.InputFilename, tc.ExpectedOutputPath)
 		gradingResults = append(gradingResults, runResult)
 	}
 

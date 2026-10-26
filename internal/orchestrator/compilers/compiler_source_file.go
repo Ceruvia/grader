@@ -21,7 +21,7 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 	compiler := SourceFileCompiler{
 		Sandbox:           sandbox,
 		LanguageOrBuilder: languageOrBuilder,
-		Redirections:      sandboxes.CreateRedirectionFiles(sandbox.GetBoxdir()),
+		Redirections:      sandboxes.CreateRedirectionFiles(sandbox),
 	}
 
 	compiler.Sandbox.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
@@ -40,7 +40,6 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 		return nil, err
 	}
 
-	compiler.Sandbox.AddFileWithoutMove(CompilationMetaFilename)
 	compiler.Sandbox.AddFileWithoutMove(CompilationOutputFilename)
 
 	return &compiler, nil

@@ -86,8 +86,7 @@ func (s *IsolateSandbox) GetFile(filename string) ([]byte, error) {
 		return nil, ErrFilenameNotInBox
 	}
 
-	data, err := os.ReadFile(appendBoxdir(s.BoxDir, filename))
-	return data, err
+	return ReadBoxFile(s, filename)
 }
 
 func (s *IsolateSandbox) AddAllowedDirectory(dirpath string) error {
@@ -207,7 +206,7 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 
 func (s *IsolateSandbox) Cleanup() error {
 	err := s.cleanUpIsolate()
-	return err
+	return errors.Join(err, os.RemoveAll(TaskDir(s.BoxId)))
 }
 
 func (s *IsolateSandbox) initSandbox() error {

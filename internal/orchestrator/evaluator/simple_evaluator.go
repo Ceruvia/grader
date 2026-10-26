@@ -3,6 +3,7 @@ package evaluator
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/sandboxes"
@@ -10,7 +11,7 @@ import (
 
 type SimpleEvaluator struct{}
 
-func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.SandboxExecutionResult, expectedOutputFilenameInBox, actualOutputFilenameInBox string) EngineRunResult {
+func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.SandboxExecutionResult, expectedOutputPath, actualOutputFilenameInBox string) EngineRunResult {
 	intermediateVerdict := models.VerdictWA
 	switch execResult.Status {
 	case sandboxes.NONZERO_EXIT_CODE:
@@ -24,10 +25,10 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 	case sandboxes.PARSING_META_ERROR:
 		intermediateVerdict = models.VerdictXX
 	}
-	actualOutput, err := sbx.GetFile(actualOutputFilenameInBox)
+	actualOutput, err := sandboxes.ReadBoxFile(sbx, actualOutputFilenameInBox)
 	if err != nil {
 		return EngineRunResult{
-			Verdict:         models.VerdictXX,
+			Verdict:         models.VerdictRE,
 			HasErrorMessage: true,
 			ErrorMessage:    fmt.Sprintf("Failed to read actual output file: %q", err)}
 	}
@@ -40,7 +41,7 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 			ErrorMessage:    string(actualOutput)}
 	}
 
-	expectedOutput, err := sbx.GetFile(expectedOutputFilenameInBox)
+	expectedOutput, err := os.ReadFile(expectedOutputPath)
 	if err != nil {
 		return EngineRunResult{
 			Verdict:         models.VerdictXX,

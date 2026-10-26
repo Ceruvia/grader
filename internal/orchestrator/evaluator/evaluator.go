@@ -5,5 +5,5 @@ import (
 )
 
 type Evaluator interface {
-	Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.SandboxExecutionResult, expectedOutputFilenameInBox, actualOutputFilenameInBox string) EngineRunResult
+	Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.SandboxExecutionResult, expectedOutputPath, actualOutputFilenameInBox string) EngineRunResult
 }

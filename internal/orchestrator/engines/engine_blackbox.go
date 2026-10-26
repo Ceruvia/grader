@@ -1,6 +1,9 @@
 package engines
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
@@ -35,8 +38,18 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, languageOrBuilder langua
 	}, nil
 }
 
-func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameInBox string) (evaluator.EngineRunResult, error) {
-	redirectionFiles := sandboxes.CreateRedirectionFiles(ge.Sandbox.GetBoxdir())
+func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputPath string) (evaluator.EngineRunResult, error) {
+	expectedOutputFilenameInBox := filepath.Base(expectedOutputPath)
+	// Discard files a previous run may have replaced with symlinks before copying or redirecting.
+	for _, filename := range []string{inputFilenameInBox, expectedOutputFilenameInBox + ".actual"} {
+		if err := os.Remove(filepath.Join(ge.Sandbox.GetBoxdir(), filename)); err != nil && !os.IsNotExist(err) {
+			return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: err.Error()}, err
+		}
+	}
+	if err := ge.Sandbox.AddFile(filepath.Join(filepath.Dir(expectedOutputPath), inputFilenameInBox)); err != nil {
+		return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: err.Error()}, err
+	}
+	redirectionFiles := sandboxes.CreateRedirectionFiles(ge.Sandbox)
 
 	if err := redirectionFiles.CreateNewMetaFileAndRedirect(expectedOutputFilenameInBox + ".meta"); err != nil {
 		return evaluator.EngineRunResult{
@@ -70,7 +83,6 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameIn
 		}, err
 	}
 
-	ge.Sandbox.AddFileWithoutMove(expectedOutputFilenameInBox + ".meta")
 	ge.Sandbox.AddFileWithoutMove(expectedOutputFilenameInBox + ".actual")
 
 	execResult := ge.Sandbox.Execute(
@@ -78,7 +90,7 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputFilenameIn
 		redirectionFiles,
 	)
 
-	thisRunResult := ge.Evaluator.Evaluate(ge.Sandbox, execResult, expectedOutputFilenameInBox, expectedOutputFilenameInBox+".actual")
+	thisRunResult := ge.Evaluator.Evaluate(ge.Sandbox, execResult, expectedOutputPath, expectedOutputFilenameInBox+".actual")
 	thisRunResult.InputFilename = inputFilenameInBox
 	thisRunResult.OutputFilename = expectedOutputFilenameInBox
 

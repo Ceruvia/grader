@@ -1,54 +1,72 @@
 package tasks
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
-const (
-	SAMPLE_SUBMISSION_FILE_URL = "https://pub-aa14e9fb26a94974a23c01cf74108727.r2.dev/c_adt_submission.zip"
-	SAMPLE_GRADER_FILE_URL     = "https://pub-aa14e9fb26a94974a23c01cf74108727.r2.dev/c_adt_grader.zip"
-	SAMPLE_WRONG_FILE_URL      = "https://pub-aa14e9fb26a94974a23c01cf74108727.r2.dev/gaada.zip"
-)
-
 func TestPrepareHelpers(t *testing.T) {
-	t.Run("DownloadFilesToSandbox", func(t *testing.T) {
-		t.Run("Sandbox populated by unzipped files", func(t *testing.T) {
-			sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 400)
+	server := archiveServer(t, map[string]map[string]string{
+		"/submission.zip": {"main.c": "int main(void) { return 0; }\n"},
+		"/grader.zip":     {"1.in": "input\n", "1.out": "answer\n", "support.h": "#define ANSWER 42\n"},
+	})
 
-			sbx.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
-			sbx.SetWallTimeLimitInMiliseconds(60 * 1000) // 1 minute
-			sbx.SetMemoryLimitInKilobytes(1024 * 1024)   // 1 GB
-
-			tester.AssertNotError(t, err)
-
-			err = DownloadFileToSandbox(sbx, "submission.zip", SAMPLE_SUBMISSION_FILE_URL)
-			tester.AssertNotError(t, err)
-
-			err = DownloadFileToSandbox(sbx, "grader.zip", SAMPLE_GRADER_FILE_URL)
-			tester.AssertNotError(t, err)
-
-			got := sbx.Filenames
-			want := []string{"_submission_unzip.meta", "ganjilgenap.c", "submission.zip", "1.in", "1.out", "10.in", "10.out", "2.in", "2.out", "3.in", "3.out", "4.in", "4.out", "5.in", "5.out", "6.in", "6.out", "7.in", "7.out", "8.in", "8.out", "9.in", "9.out", "_grader_unzip.meta", "_submission_unzip.meta", "array.c", "array.h", "boolean.h", "ganjilgenap.c", "grader.zip", "submission.zip"}
-
-			tester.AssertDeep(t, got, want)
-		})
-
-		t.Run("Returns error when link isn't a ZIP file", func(t *testing.T) {
-			sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 401)
-
-			sbx.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
-			sbx.SetWallTimeLimitInMiliseconds(60 * 1000) // 1 minute
-			sbx.SetMemoryLimitInKilobytes(1024 * 1024)   // 1 GB
-
-			tester.AssertNotError(t, err)
-
-			err = DownloadFileToSandbox(sbx, "submission.zip", SAMPLE_WRONG_FILE_URL)
-			if err == nil {
-				t.Errorf("Expected an error but got Nil instead")
+	t.Run("keeps expected outputs and grader archive outside the box", func(t *testing.T) {
+		sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 400)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = sbx.Cleanup() })
+		taskDir := filepath.Join(t.TempDir(), "task")
+		testcases, err := prepareGraderFiles(sbx, taskDir, server.URL+"/grader.zip", []string{"1.in"}, []string{"1.out"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(taskDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0700 {
+			t.Fatalf("task directory mode = %o, want 700", info.Mode().Perm())
+		}
+		expected, err := os.ReadFile(testcases[0].ExpectedOutputPath)
+		if err != nil || string(expected) != "answer\n" {
+			t.Fatalf("host expected output = %q, error = %v", expected, err)
+		}
+		for _, name := range []string{"1.out", "grader.zip"} {
+			if _, err := os.Lstat(filepath.Join(sbx.GetBoxdir(), name)); !os.IsNotExist(err) {
+				t.Errorf("%s entered box, error = %v", name, err)
 			}
-		})
+		}
+		for name, want := range map[string]string{"1.in": "input\n", "support.h": "#define ANSWER 42\n"} {
+			got, err := os.ReadFile(filepath.Join(sbx.GetBoxdir(), name))
+			if err != nil || string(got) != want {
+				t.Errorf("%s = %q, error = %v", name, got, err)
+			}
+		}
+	})
+
+	t.Run("downloads submission files into the box", func(t *testing.T) {
+		sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 401)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = sbx.Cleanup() })
+		sbx.SetTimeLimitInMiliseconds(20000)
+		sbx.SetWallTimeLimitInMiliseconds(60000)
+		sbx.SetMemoryLimitInKilobytes(1024 * 1024)
+		if err := DownloadFileToSandbox(sbx, "submission.zip", server.URL+"/submission.zip"); err != nil {
+			t.Fatal(err)
+		}
+		got, err := sbx.GetFile("main.c")
+		if err != nil || string(got) != "int main(void) { return 0; }\n" {
+			t.Fatalf("submission source = %q, error = %v", got, err)
+		}
+		if err := DownloadFileToSandbox(sbx, "invalid.zip", server.URL+"/missing.zip"); err == nil {
+			t.Error("expected error for missing archive")
+		}
 	})
 }
