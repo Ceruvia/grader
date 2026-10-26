@@ -30,14 +30,17 @@ func CompileCheckWithBuilder(submissionId, graderFilesURL, submissionFilesURL st
 }
 
 func compileCheck(graderFilesURL, submissionFilesURL string, submission models.Submission) (string, error) {
-	sbx, _, cleanup, err := prepareTask(submission.GetId(), graderFilesURL, submissionFilesURL, nil, nil)
+	task, err := prepareTask(submission.GetId(), graderFilesURL, submissionFilesURL, nil, nil)
 	if err != nil {
 		log.WithField("submission_id", submission.GetId()).WithError(err).Error("Failed to prepare compile check")
 		return encodeCompileCheck("internal_error", "Test could not run. Please try again.")
 	}
-	defer cleanup()
+	defer task.cleanup()
+	if builder, ok := submission.(*models.SubmissionWithBuilder); ok {
+		builder.Makefile = task.makefile
+	}
 
-	compiled, err := compilers.CompileSubmission(sbx, submission, compileMessageLimit)
+	compiled, err := compilers.CompileSubmission(task.sbx, submission, compileMessageLimit)
 	if err != nil {
 		log.WithField("submission_id", submission.GetId()).WithError(err).Error("Failed to prepare compiler")
 		return encodeCompileCheck("internal_error", "Test could not run. Please try again.")

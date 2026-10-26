@@ -23,7 +23,10 @@ const (
 	unzipMemoryLimitKb   = 262144
 )
 
-func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename, url string) error {
+// DownloadFileToSandbox downloads an archive into the box and unzips it there.
+// Files already in the box (teacher files) are never overwritten. Root entries
+// named in remove are deleted after the unzip, whatever their type.
+func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename, url string, remove ...string) error {
 	if err := files.DownloadFile(ctx, sbx.GetBoxdir()+"/"+filename, url); err != nil {
 		return err
 	}
@@ -38,12 +41,18 @@ func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename,
 	sbx.SetMemoryLimitInKilobytes(unzipMemoryLimitKb)
 
 	result := sbx.Execute(
-		*command.GetCommandBuilder("/usr/bin/unzip").AddArgs("-q").AddArgs(filename),
+		*command.GetCommandBuilder("/usr/bin/unzip").AddArgs("-q", "-n", filename),
 		red,
 	)
 
 	if result.Status != sandboxes.ZERO_EXIT_CODE {
 		return errors.New("Something went wrong while unzipping: " + result.Status.String() + " " + result.Message)
+	}
+
+	for _, name := range remove {
+		if err := os.RemoveAll(filepath.Join(sbx.GetBoxdir(), name)); err != nil {
+			return err
+		}
 	}
 
 	filenames, err := files.GetFilenamesInDir(sbx.GetBoxdir())

@@ -19,7 +19,10 @@ func CompileSubmission(sandbox sandboxes.Sandbox, submission models.Submission, 
 		return CompilerResult{}, err
 	}
 	sourceFilenames := []string{}
-	if !submission.IsBuilder() {
+	if submission.IsBuilder() && submission.GetMakefile() != "" {
+		// Builders take their build file in place of source files.
+		sourceFilenames = append(sourceFilenames, submission.GetMakefile())
+	} else if !submission.IsBuilder() {
 		for _, filename := range sandbox.GetFilenamesInBox() {
 			for _, extension := range submission.GetLanguage().GetAllowedExtention() {
 				if strings.HasSuffix(filename, "."+extension) {

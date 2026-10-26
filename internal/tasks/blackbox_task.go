@@ -16,12 +16,12 @@ func GradeBlackbox(
 	language string,
 	mainSourceFilename string,
 ) (string, error) {
-	sbx, testcases, cleanup, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
+	task, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grading task")
 		return "", err
 	}
-	defer cleanup()
+	defer task.cleanup()
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
@@ -36,7 +36,7 @@ func GradeBlackbox(
 				TimeInMiliseconds: timeLimit,
 				MemoryInKilobytes: memoryLimit,
 			},
-			Testcases: testcases,
+			Testcases: task.testcases,
 		},
 		MainSourceFilename: mainSourceFilename,
 	}
@@ -45,7 +45,7 @@ func GradeBlackbox(
 		"submissionId": submissionId,
 	}).Debug("Start grading")
 
-	result := orchestrator.GradeBlackboxSubmission(sbx, submission)
+	result := orchestrator.GradeBlackboxSubmission(task.sbx, submission)
 
 	b, err := json.Marshal(result)
 	if err != nil {
@@ -68,12 +68,12 @@ func GradeBlackboxWithBuilder(
 	language string,
 	builder, compileScript, runScript string,
 ) (string, error) {
-	sbx, testcases, cleanup, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
+	task, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grading task")
 		return "", err
 	}
-	defer cleanup()
+	defer task.cleanup()
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
@@ -88,18 +88,19 @@ func GradeBlackboxWithBuilder(
 				TimeInMiliseconds: timeLimit,
 				MemoryInKilobytes: memoryLimit,
 			},
-			Testcases: testcases,
+			Testcases: task.testcases,
 		},
 		Builder:       builder,
 		CompileScript: compileScript,
 		RunScript:     runScript,
+		Makefile:      task.makefile,
 	}
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
 	}).Debug("Start grading")
 
-	result := orchestrator.GradeBlackboxSubmission(sbx, submission)
+	result := orchestrator.GradeBlackboxSubmission(task.sbx, submission)
 
 	b, err := json.Marshal(result)
 	if err != nil {

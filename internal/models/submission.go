@@ -16,6 +16,8 @@ type Submission interface {
 
 	GetExecFilenameOrScript() string
 	GetCompileFilenameOrScript() string
+	// GetMakefile names the teacher makefile that make must read, or is empty.
+	GetMakefile() string
 }
 
 type SubmissionWithBuilder struct {
@@ -23,6 +25,7 @@ type SubmissionWithBuilder struct {
 	Builder       string
 	CompileScript string
 	RunScript     string
+	Makefile      string
 }
 
 func (s SubmissionWithBuilder) IsBuilder() bool   { return true }
@@ -38,6 +41,7 @@ func (s SubmissionWithBuilder) GetLimits() GradingLimit            { return s.Co
 func (s SubmissionWithBuilder) GetTestcases() []Testcase           { return s.Core.Testcases }
 func (s SubmissionWithBuilder) GetExecFilenameOrScript() string    { return s.RunScript }
 func (s SubmissionWithBuilder) GetCompileFilenameOrScript() string { return s.CompileScript }
+func (s SubmissionWithBuilder) GetMakefile() string                { return s.Makefile }
 
 type SubmissionWithFiles struct {
 	Core
@@ -59,6 +63,7 @@ func (s SubmissionWithFiles) GetExecFilenameOrScript() string {
 	return s.GetLanguage().GetExecutableFilename(s.MainSourceFilename)
 }
 func (s SubmissionWithFiles) GetCompileFilenameOrScript() string { return s.MainSourceFilename }
+func (s SubmissionWithFiles) GetMakefile() string                { return "" }
 
 type Core struct {
 	Id        string
