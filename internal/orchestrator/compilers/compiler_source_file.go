@@ -5,6 +5,12 @@ import (
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
+// Compile limits are variables only so tests can lower them. Production never changes them.
+var (
+	CompileTimeLimitMs     = 20 * 1000 // 20 seconds CPU
+	CompileWallTimeLimitMs = 60 * 1000 // 1 minute wall
+)
+
 type SourceFileCompiler struct {
 	Sandbox           sandboxes.Sandbox
 	Redirections      sandboxes.RedirectionFiles
@@ -22,9 +28,9 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 		Redirections:      sandboxes.CreateRedirectionFiles(sandbox),
 	}
 
-	compiler.Sandbox.SetTimeLimitInMiliseconds(20 * 1000)     // 20 seconds
-	compiler.Sandbox.SetWallTimeLimitInMiliseconds(60 * 1000) // 1 minute
-	compiler.Sandbox.SetMemoryLimitInKilobytes(1024 * 1024)   // 1 GB
+	compiler.Sandbox.SetTimeLimitInMiliseconds(CompileTimeLimitMs)
+	compiler.Sandbox.SetWallTimeLimitInMiliseconds(CompileWallTimeLimitMs)
+	compiler.Sandbox.SetMemoryLimitInKilobytes(1024 * 1024) // 1 GB
 
 	if err := compiler.Redirections.CreateNewMetaFileAndRedirect(CompilationMetaFilename); err != nil {
 		return nil, err

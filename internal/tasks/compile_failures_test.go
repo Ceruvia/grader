@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
 	"github.com/Ceruvia/grader/internal/pool"
 )
 
@@ -12,6 +13,9 @@ func TestCompileCheckStudentFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Pool.Close)
+	wall := compilers.CompileWallTimeLimitMs
+	compilers.CompileWallTimeLimitMs = 2000 // the wall timeout case would wait the production minute
+	t.Cleanup(func() { compilers.CompileWallTimeLimitMs = wall })
 	for _, tc := range []struct{ name, recipe string }{
 		{"wall timeout", "sleep 100"},
 		{"removed diagnostic output", "rm -f _compile.out; false"},
