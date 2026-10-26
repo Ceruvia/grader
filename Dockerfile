@@ -8,7 +8,8 @@ STOPSIGNAL SIGRTMIN+3
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       systemd systemd-sysv \
-      ca-certificates wget git build-essential libcap-dev libsystemd-dev pkg-config zip unzip && \
+      ca-certificates wget git build-essential libcap-dev libsystemd-dev pkg-config zip unzip \
+      python3 ghc && \
     rm -f /lib/systemd/system/multi-user.target.wants/* \
       /etc/systemd/system/*.wants/* \
       /lib/systemd/system/local-fs.target.wants/* \
@@ -17,6 +18,9 @@ RUN apt-get update && \
       /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
       /lib/systemd/system/systemd-update-utmp* && \
     rm -rf /var/lib/apt/lists/*
+
+# 1b) Debian symlinks ghc's package db to /var/lib/ghc, which isolate boxes do not bind (only /usr etc.).
+RUN rm /usr/lib/ghc/package.conf.d && cp -a /var/lib/ghc/package.conf.d /usr/lib/ghc/package.conf.d
 
 # 2) Install Go
 ENV GOLANG_VERSION=1.24.2 \
