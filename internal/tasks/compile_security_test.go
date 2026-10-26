@@ -34,9 +34,9 @@ func TestCompileCheckDoesNotExposeHiddenInputs(t *testing.T) {
 			var result string
 			var err error
 			if builder {
-				result, err = CompileCheckWithBuilder("hidden-input-test", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "Makefile", "")
+				result, err = CompileCheckWithBuilder("hidden-input-test", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "Makefile", "", 0)
 			} else {
-				result, err = CompileCheck("hidden-input-test", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "main.c")
+				result, err = CompileCheck("hidden-input-test", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "main.c", 0)
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -94,7 +94,7 @@ func TestCompileCheckDownloadErrorIsGeneric(t *testing.T) {
 	server.Start()
 	defer server.Close()
 	const canary = "presigned-query-secret-canary"
-	result, err := CompileCheck("download-error-test", server.URL+"/grader.zip?signature="+canary, server.URL+"/submission.zip", "C", "main.c")
+	result, err := CompileCheck("download-error-test", server.URL+"/grader.zip?signature="+canary, server.URL+"/submission.zip", "C", "main.c", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -26,7 +26,7 @@ func TestCompileCheckStudentFailures(t *testing.T) {
 				"/grader.zip":     {"support.h": "// teacher helper\n"},
 				"/submission.zip": {"Makefile": "all:\n\t@" + tc.recipe + "\n"},
 			})
-			result, err := CompileCheckWithBuilder("student-failure-test", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "Makefile", "")
+			result, err := CompileCheckWithBuilder("student-failure-test", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "Makefile", "", 0)
 			if err != nil {
 				t.Fatal(err)
 			}

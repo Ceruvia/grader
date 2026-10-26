@@ -3,6 +3,7 @@ package tasks
 import (
 	"encoding/json"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Ceruvia/grader/internal/models"
@@ -12,24 +13,30 @@ import (
 
 const compileMessageLimit = 64 << 10
 
+var compileCheckNow = time.Now
+
 type compileCheckResult struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
 }
 
-func CompileCheck(submissionId, graderFilesURL, submissionFilesURL string, language, mainSourceFilename string) (string, error) {
+func CompileCheck(submissionId, graderFilesURL, submissionFilesURL string, language, mainSourceFilename string, deadlineUnixMs int64) (string, error) {
 	return compileCheck(graderFilesURL, submissionFilesURL, &models.SubmissionWithFiles{
 		Core: models.Core{Id: submissionId, Language: language}, MainSourceFilename: mainSourceFilename,
-	})
+	}, deadlineUnixMs)
 }
 
-func CompileCheckWithBuilder(submissionId, graderFilesURL, submissionFilesURL string, language, builder, compileScript string) (string, error) {
+func CompileCheckWithBuilder(submissionId, graderFilesURL, submissionFilesURL string, language, builder, compileScript string, deadlineUnixMs int64) (string, error) {
 	return compileCheck(graderFilesURL, submissionFilesURL, &models.SubmissionWithBuilder{
 		Core: models.Core{Id: submissionId, Language: language}, Builder: builder, CompileScript: compileScript,
-	})
+	}, deadlineUnixMs)
 }
 
-func compileCheck(graderFilesURL, submissionFilesURL string, submission models.Submission) (string, error) {
+func compileCheck(graderFilesURL, submissionFilesURL string, submission models.Submission, deadlineUnixMs int64) (string, error) {
+	if now := compileCheckNow().UnixMilli(); deadlineUnixMs > 0 && now > deadlineUnixMs {
+		log.WithFields(log.Fields{"submissionId": submission.GetId(), "late_ms": now - deadlineUnixMs}).Info("Skipping expired compile check")
+		return encodeCompileCheck("internal_error", "Test could not run. Please try again.")
+	}
 	task, err := prepareTask(submission.GetId(), graderFilesURL, submissionFilesURL, nil, nil)
 	if err != nil {
 		log.WithField("submission_id", submission.GetId()).WithError(err).Error("Failed to prepare compile check")

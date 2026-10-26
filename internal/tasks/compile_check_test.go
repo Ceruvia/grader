@@ -60,9 +60,9 @@ func TestCompileCheck(t *testing.T) {
 			var result string
 			var err error
 			if tc.builder {
-				result, err = CompileCheckWithBuilder("compile-only", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "Makefile", "")
+				result, err = CompileCheckWithBuilder("compile-only", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "Makefile", "", 0)
 			} else {
-				result, err = CompileCheck("compile-only", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "main.c")
+				result, err = CompileCheck("compile-only", server.URL+"/grader.zip", server.URL+"/submission.zip", "C", "main.c", 0)
 			}
 			if err != nil {
 				t.Fatal(err)
