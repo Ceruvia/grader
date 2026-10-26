@@ -63,7 +63,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			compiler, err := compilers.PrepareSourceFileCompiler(sbx, clang)
 			tester.AssertNotError(t, err)
 
-			res := compiler.Compile("ganjilgenap.c", []string{"ganjilgenap.c", "array.c"})
+			res := compiler.Compile("ganjilgenap.c", []string{"ganjilgenap.c", "array.c"}, 0)
 
 			want := compilers.CompilerResult{
 				IsSuccess:      true,
@@ -94,7 +94,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			compiler, err := compilers.PrepareSourceFileCompiler(sbx, clang)
 			tester.AssertNotError(t, err)
 
-			res := compiler.Compile("unfoundfunc.c", []string{"unfoundfunc.c"})
+			res := compiler.Compile("unfoundfunc.c", []string{"unfoundfunc.c"}, 0)
 
 			tester.AssertDeep(t, res.IsSuccess, false)
 			if !strings.Contains(res.StdoutStderr, "printf") {

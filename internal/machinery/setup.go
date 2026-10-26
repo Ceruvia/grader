@@ -1,10 +1,6 @@
 package machinery
 
 import (
-	"context"
-	"encoding/json"
-	"strings"
-
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
@@ -36,8 +32,10 @@ func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 	server := machinery.NewServer(cnf, broker, backend, lock)
 
 	tasksMap := map[string]interface{}{
-		"blackbox":              ceruviaTasks.GradeBlackbox,
-		"blackbox_with_builder": ceruviaTasks.GradeBlackboxWithBuilder,
+		"blackbox":                   ceruviaTasks.GradeBlackbox,
+		"blackbox_with_builder":      ceruviaTasks.GradeBlackboxWithBuilder,
+		"compile_check":              ceruviaTasks.CompileCheck,
+		"compile_check_with_builder": ceruviaTasks.CompileCheckWithBuilder,
 	}
 
 	if err := server.RegisterTasks(tasksMap); err != nil {
@@ -72,42 +70,7 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 	}
 
 	// After task execution
-	postTaskHandler := func(signature *tasks.Signature) {
-		fields := log.Fields{"task": signature.Name, "uuid": signature.UUID}
-		defer func() {
-			if r := recover(); r != nil {
-				log.WithFields(fields).Errorf("Recovered panic in post task handler: %v", r)
-			}
-		}()
-
-		if len(signature.Args) == 0 {
-			log.WithFields(fields).Error("Task has no submission id, callback skipped")
-			return
-		}
-		submissionId, ok := signature.Args[0].Value.(string)
-		if !ok {
-			log.WithFields(fields).Errorf("Task submission id has type %T, callback skipped", signature.Args[0].Value)
-			return
-		}
-		fields["submission_id"] = submissionId
-
-		payload, err := json.Marshal(struct {
-			TaskId string `json:"task_id"`
-		}{TaskId: signature.UUID})
-		if err != nil {
-			log.WithFields(fields).WithError(err).Error("Failed to encode callback payload")
-			return
-		}
-
-		callbackUrl := strings.ReplaceAll(cfg.BackendCallbackEndpoint, "{submission_id}", submissionId)
-		if err := postCallback(context.Background(), callbackClient, callbackUrl, cfg.BackendAPIToken, payload, callbackBackoff); err != nil {
-			// The backend sweeper fails the submission and refunds the try.
-			log.WithFields(fields).WithError(err).Error("Callback failed, submission left pending")
-			return
-		}
-
-		log.WithFields(fields).Info("Finished task")
-	}
+	postTaskHandler := newPostTaskHandler(cfg)
 
 	worker.SetPostTaskHandler(postTaskHandler)
 	worker.SetErrorHandler(errorHandler)

@@ -1,14 +1,10 @@
 package tasks
 
 import (
-	"context"
 	"encoding/json"
-	"os"
 
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator"
-	"github.com/Ceruvia/grader/internal/pool"
-	"github.com/Ceruvia/grader/internal/sandboxes"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -20,35 +16,12 @@ func GradeBlackbox(
 	language string,
 	mainSourceFilename string,
 ) (string, error) {
-	acquiredSandbox := pool.Pool.Acquire()
-	defer pool.Pool.Release(acquiredSandbox)
-
-	log.WithFields(log.Fields{
-		"submissionId": submissionId,
-		"sandboxId":    acquiredSandbox.BoxId,
-	}).Debug("Acquired sandbox")
-
-	sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", acquiredSandbox.BoxId)
+	sbx, testcases, cleanup, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to create isolate sandbox")
+		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grading task")
 		return "", err
 	}
-
-	taskDir := sandboxes.TaskDir(acquiredSandbox.BoxId)
-	defer os.RemoveAll(taskDir)
-	defer sbx.Cleanup()
-	// Machinery does not give tasks a cancellable context. The 30 s download client and the unzip limits bound each step.
-	ctx := context.Background()
-	testcases, err := prepareGraderFiles(ctx, sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
-	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
-		return "", err
-	}
-
-	if err := DownloadFileToSandbox(ctx, sbx, "submission.zip", submissionFilesURL); err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
-		return "", err
-	}
+	defer cleanup()
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
@@ -95,35 +68,12 @@ func GradeBlackboxWithBuilder(
 	language string,
 	builder, compileScript, runScript string,
 ) (string, error) {
-	acquiredSandbox := pool.Pool.Acquire()
-	defer pool.Pool.Release(acquiredSandbox)
-
-	log.WithFields(log.Fields{
-		"submissionId": submissionId,
-		"sandboxId":    acquiredSandbox.BoxId,
-	}).Debug("Acquired sandbox")
-
-	sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", acquiredSandbox.BoxId)
+	sbx, testcases, cleanup, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to create isolate sandbox")
+		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grading task")
 		return "", err
 	}
-
-	taskDir := sandboxes.TaskDir(acquiredSandbox.BoxId)
-	defer os.RemoveAll(taskDir)
-	defer sbx.Cleanup()
-	// Machinery does not give tasks a cancellable context. The 30 s download client and the unzip limits bound each step.
-	ctx := context.Background()
-	testcases, err := prepareGraderFiles(ctx, sbx, taskDir, graderFilesURL, inputTestcases, outputTestcases)
-	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
-		return "", err
-	}
-
-	if err := DownloadFileToSandbox(ctx, sbx, "submission.zip", submissionFilesURL); err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grader files")
-		return "", err
-	}
+	defer cleanup()
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,

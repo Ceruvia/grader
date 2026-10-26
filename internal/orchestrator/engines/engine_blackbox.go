@@ -49,6 +49,8 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputPath strin
 	if err := ge.Sandbox.AddFile(filepath.Join(filepath.Dir(expectedOutputPath), inputFilenameInBox)); err != nil {
 		return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: err.Error()}, err
 	}
+	// Do not leave an earlier test's hidden input available to later tests.
+	defer os.Remove(filepath.Join(ge.Sandbox.GetBoxdir(), inputFilenameInBox))
 	redirectionFiles := sandboxes.CreateRedirectionFiles(ge.Sandbox)
 
 	if err := redirectionFiles.CreateNewMetaFileAndRedirect(expectedOutputFilenameInBox + ".meta"); err != nil {

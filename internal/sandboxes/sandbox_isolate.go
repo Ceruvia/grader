@@ -86,7 +86,7 @@ func (s *IsolateSandbox) GetFile(filename string) ([]byte, error) {
 		return nil, ErrFilenameNotInBox
 	}
 
-	return ReadBoxFile(s, filename)
+	return ReadBoxFile(s, filename, 0)
 }
 
 func (s *IsolateSandbox) AddAllowedDirectory(dirpath string) error {

@@ -39,12 +39,12 @@ func TestPrepareHelpers(t *testing.T) {
 		if err != nil || string(expected) != "answer\n" {
 			t.Fatalf("host expected output = %q, error = %v", expected, err)
 		}
-		for _, name := range []string{"1.out", "grader.zip"} {
+		for _, name := range []string{"1.in", "1.out", "grader.zip"} {
 			if _, err := os.Lstat(filepath.Join(sbx.GetBoxdir(), name)); !os.IsNotExist(err) {
 				t.Errorf("%s entered box, error = %v", name, err)
 			}
 		}
-		for name, want := range map[string]string{"1.in": "input\n", "support.h": "#define ANSWER 42\n"} {
+		for name, want := range map[string]string{"support.h": "#define ANSWER 42\n"} {
 			got, err := os.ReadFile(filepath.Join(sbx.GetBoxdir(), name))
 			if err != nil || string(got) != want {
 				t.Errorf("%s = %q, error = %v", name, got, err)

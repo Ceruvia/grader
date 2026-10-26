@@ -25,7 +25,7 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 	case sandboxes.PARSING_META_ERROR:
 		intermediateVerdict = models.VerdictXX
 	}
-	actualOutput, err := sandboxes.ReadBoxFile(sbx, actualOutputFilenameInBox)
+	actualOutput, err := sandboxes.ReadBoxFile(sbx, actualOutputFilenameInBox, 0)
 	if err != nil {
 		return EngineRunResult{
 			Verdict:         models.VerdictRE,

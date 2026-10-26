@@ -1,8 +1,6 @@
 package orchestrator
 
 import (
-	"strings"
-
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
@@ -16,26 +14,10 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 		return createFailGradingResult("Compile Error", languages.ErrLanguageNotExist.Error())
 	}
 
-	compiler, err := compilers.PrepareSourceFileCompiler(sandbox, submission.GetCompileLanguage())
+	compileResult, err := compilers.CompileSubmission(sandbox, submission, 0)
 	if err != nil {
 		return createFailGradingResult("Internal error", err.Error())
 	}
-
-	/* Compile source files to binary */
-
-	// Get source filenames inside of box
-	sourceFilenames := []string{}
-	if !submission.IsBuilder() { // If it's builder then just skip, unecessary
-		for _, filename := range sandbox.GetFilenamesInBox() {
-			for _, extention := range submission.GetLanguage().GetAllowedExtention() {
-				if strings.HasSuffix(filename, "."+extention) {
-					sourceFilenames = append(sourceFilenames, filename)
-				}
-			}
-		}
-	}
-
-	compileResult := compiler.Compile(submission.GetCompileFilenameOrScript(), sourceFilenames)
 
 	// Instantly return failed GradingResult if compilation failed
 	if !compileResult.IsSuccess {

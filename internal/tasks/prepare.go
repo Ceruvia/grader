@@ -81,7 +81,8 @@ func prepareGraderFiles(ctx context.Context, sbx sandboxes.Sandbox, taskDir, url
 		return nil, err
 	}
 	for _, entry := range entries {
-		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) != ".out" {
+		// Hidden inputs are copied by the engine just before their own test runs.
+		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) != ".out" && filepath.Ext(entry.Name()) != ".in" {
 			if err := sbx.AddFile(filepath.Join(graderDir, entry.Name())); err != nil {
 				return nil, err
 			}

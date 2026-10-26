@@ -1,8 +1,6 @@
 package compilers
 
 import (
-	"os"
-
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
@@ -46,7 +44,7 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 }
 
 // Compiles the source files inside boxdir. Files are assumed to be in boxdir, and will be checked trough sandbox.
-func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string) CompilerResult {
+func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string, messageLimitBytes int64) CompilerResult {
 	compileCommand := c.LanguageOrBuilder.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
 
 	result := c.Sandbox.Execute(compileCommand, c.Redirections)
@@ -57,23 +55,18 @@ func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesIn
 			BinaryFilename: c.LanguageOrBuilder.GetExecutableFilename(mainSourceFilename),
 		}
 	} else if result.Status == sandboxes.NONZERO_EXIT_CODE || result.Status == sandboxes.KILLED_ON_SIGNAL {
-		data, err := c.Sandbox.GetFile(CompilationOutputFilename)
+		data, err := sandboxes.ReadBoxFile(c.Sandbox, CompilationOutputFilename, messageLimitBytes)
 
-		if err != nil && err != os.ErrNotExist {
-			return CompilerResult{
-				IsSuccess:    false,
-				StdoutStderr: err.Error(),
-			}
-		} else {
-			return CompilerResult{
-				IsSuccess:    false,
-				StdoutStderr: string(data),
-			}
+		if err != nil {
+			// A submission can remove or replace its own diagnostic output.
+			// This is a compilation failure, not a grader infrastructure failure.
+			return CompilerResult{StdoutStderr: err.Error()}
 		}
+		return CompilerResult{StdoutStderr: string(data)}
 	} else {
 		return CompilerResult{
-			IsSuccess:    false,
-			StdoutStderr: result.Message,
+			InternalError: result.Status == sandboxes.INTERNAL_ERROR || result.Status == sandboxes.PARSING_META_ERROR,
+			StdoutStderr:  result.Message,
 		}
 	}
 }
