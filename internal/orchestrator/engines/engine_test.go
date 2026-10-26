@@ -2,6 +2,8 @@ package engines_test
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -83,7 +85,11 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := sbx.AddFile("../../../tests/c_test/hello_binary/hello"); err != nil {
+			binary := filepath.Join(t.TempDir(), "hello")
+			if output, err := exec.Command("gcc", "-o", binary, "../../../tests/c_test/hello/hello.c").CombinedOutput(); err != nil {
+				t.Fatalf("build hello: %v\n%s", err, output)
+			}
+			if err := sbx.AddFile(binary); err != nil {
 				t.Fatal(err)
 			}
 

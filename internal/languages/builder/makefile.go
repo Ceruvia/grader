@@ -16,8 +16,11 @@ func (b MakefileBuilder) GetAllowedExtention() []string {
 }
 
 func (b MakefileBuilder) GetCompilationCommand(compileCommand string, _ ...string) command.CommandBuilder {
-	return *command.GetCommandBuilder("/usr/bin/make").
-		AddArgs(compileCommand)
+	cmd := command.GetCommandBuilder("/usr/bin/make")
+	if compileCommand != "" {
+		cmd.AddArgs(compileCommand)
+	}
+	return *cmd
 }
 
 func (b MakefileBuilder) GetExecutionCommand(binaryFilename string) command.CommandBuilder {

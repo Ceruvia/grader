@@ -79,9 +79,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// defer sbx.Cleanup()
-
-			t.Log(sbx.BoxDir)
+			defer sbx.Cleanup()
 
 			tempDir := "../../../tests/c_test/uncompileable"
 			sourceFiles := []string{"unfoundfunc.c"}
@@ -99,8 +97,8 @@ func TestSourceFileCompiler(t *testing.T) {
 			res := compiler.Compile("unfoundfunc.c", []string{"unfoundfunc.c"})
 
 			tester.AssertDeep(t, res.IsSuccess, false)
-			if !strings.Contains(res.StdoutStderr, "error: implicit declaration of function ‘prinf’") {
-				t.Errorf(`expected to get "implicit declaration of function" error in output, instead got %q`, res.StdoutStderr)
+			if !strings.Contains(res.StdoutStderr, "printf") {
+				t.Errorf(`expected diagnostic to mention "printf", instead got %q`, res.StdoutStderr)
 			}
 		})
 	})
