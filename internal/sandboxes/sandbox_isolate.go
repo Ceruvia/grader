@@ -115,12 +115,13 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	sandboxedCommand := command.GetCommandBuilder(s.IsolatePath)
 	sandboxedCommand.AddArgs("-b " + strconv.Itoa(s.BoxId))
 
-	sandboxedCommand.AddArgs("--dir=/etc")
 	for _, dir := range s.AllowedDirs {
 		sandboxedCommand.AddArgs(fmt.Sprintf("--dir=%s:rw", dir))
 	}
 
-	sandboxedCommand.AddArgs("-e")
+	sandboxedCommand.AddArgs("-E", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	sandboxedCommand.AddArgs("-E", "HOME=/box")
+	sandboxedCommand.AddArgs("-E", "LANG=C.UTF-8")
 
 	if s.MaxProcesses > 0 {
 		sandboxedCommand.AddArgs("--cg").AddArgs(fmt.Sprintf("-p%d", s.MaxProcesses))
