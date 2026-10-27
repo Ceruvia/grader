@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
@@ -9,14 +10,19 @@ import (
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
+const StatusInternalError = "Internal error"
+
 func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submission) evaluator.GradingResult {
 	if submission.GetLanguage() == nil {
 		return createFailGradingResult("Compile Error", languages.ErrLanguageNotExist.Error())
 	}
 
-	compileResult, err := compilers.CompileSubmission(sandbox, submission, 0)
+	compileResult, err := compilers.CompileSubmission(sandbox, submission, diagnostics.MaxBytes)
 	if err != nil {
-		return createFailGradingResult("Internal error", err.Error())
+		return createFailGradingResult(StatusInternalError, err.Error())
+	}
+	if compileResult.InternalError {
+		return createFailGradingResult(StatusInternalError, compileResult.StdoutStderr)
 	}
 
 	// Instantly return failed GradingResult if compilation failed
@@ -34,7 +40,7 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 		submission.GetExecFilenameOrScript(),
 	)
 	if err != nil {
-		return createFailGradingResult("Internal error", err.Error())
+		return createFailGradingResult(StatusInternalError, err.Error())
 	}
 
 	var gradingResults []evaluator.EngineRunResult

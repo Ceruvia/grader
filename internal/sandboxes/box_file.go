@@ -18,39 +18,51 @@ var (
 // CreateIsolateSandbox default of 102400 KB.
 const defaultReadLimitBytes = 100 << 20
 
-// ReadBoxFile reads a file the sandboxed program could have written. The grader runs as
-// root, so it never follows a symlink, never blocks on a FIFO or device, and never reads
-// more than the box file size limit (isolate -f, in KB), which bounds any file the program
-// can write. A positive maxBytes returns only that prefix (for compile diagnostics).
-// Zero reads the full output within the box limit and rejects oversized files.
-func ReadBoxFile(sbx Sandbox, filename string, maxBytes int64) ([]byte, error) {
+// OpenBoxFile opens untrusted output without following symlinks or blocking on
+// special files. The returned descriptor belongs to the caller.
+func OpenBoxFile(sbx Sandbox, filename string) (*os.File, error) {
 	f, err := os.OpenFile(filepath.Join(sbx.GetBoxdir(), filename), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	fail := func(err error) (*os.File, error) {
+		_ = f.Close()
+		return nil, err
+	}
 
 	info, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: %w", filename, ErrNotRegularFile)
+		return fail(fmt.Errorf("%s: %w", filename, ErrNotRegularFile))
 	}
+	if info.Size() > boxFileLimit(sbx) {
+		return fail(fmt.Errorf("%s: %w", filename, ErrBoxFileTooLarge))
+	}
+	return f, nil
+}
+
+func boxFileLimit(sbx Sandbox) int64 {
 
 	limit := int64(defaultReadLimitBytes)
 	if kb := sbx.GetFileSizeLimit(); kb > 0 {
 		limit = int64(kb) * 1024
 	}
-	if maxBytes > 0 && maxBytes <= limit {
-		return io.ReadAll(io.LimitReader(f, maxBytes))
-	}
-	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	return limit
+}
+
+// ReadBoxFile reads only the requested diagnostic prefix. Zero retains the full
+// file API, bounded by the sandbox's per-file limit.
+func ReadBoxFile(sbx Sandbox, filename string, maxBytes int64) ([]byte, error) {
+	f, err := OpenBoxFile(sbx, filename)
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%s: %w", filename, ErrBoxFileTooLarge)
+	defer f.Close()
+	limit := boxFileLimit(sbx)
+	if maxBytes > 0 && maxBytes < limit {
+		limit = maxBytes
 	}
-	return data, nil
+	return io.ReadAll(io.LimitReader(f, limit))
 }

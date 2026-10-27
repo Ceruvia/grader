@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -79,10 +78,8 @@ func prepareGraderFiles(ctx context.Context, sbx sandboxes.Sandbox, taskDir, url
 	}
 	unzipCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(unzipCtx, "/usr/bin/unzip", "-q", "-o", "grader.zip", "-d", filepath.Join(taskDir, "files"))
-	cmd.Dir = taskDir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("unzip grader files: %w: %s", err, output)
+	if err := extractTeacherArchive(unzipCtx, filepath.Join(taskDir, "grader.zip"), filepath.Join(taskDir, "files")); err != nil {
+		return nil, fmt.Errorf("unzip grader files: %w", err)
 	}
 	graderDir := filepath.Join(taskDir, "files")
 	entries, err := os.ReadDir(graderDir)

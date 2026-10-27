@@ -29,21 +29,16 @@ type preparedTask struct {
 // replace them, and when the teacher sent a makefile no student makefile enters
 // the box, so the teacher recipe and drivers are the ones that run.
 func prepareTask(submissionId, graderFilesURL, submissionFilesURL string, inputs, outputs []string) (preparedTask, error) {
-	lease := pool.Pool.Acquire()
-	log.WithFields(log.Fields{"submissionId": submissionId, "sandboxId": lease.BoxId}).Debug("Acquired sandbox")
-	sbx, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", lease.BoxId)
+	sbx, err := pool.Pool.Acquire()
 	if err != nil {
-		pool.Pool.Release(lease)
-		return preparedTask{}, err
+		return preparedTask{}, fmt.Errorf("acquire sandbox: %w", err)
 	}
-	task := preparedTask{sbx: sbx, cleanup: func() {
-		defer pool.Pool.Release(lease)
-		_ = sbx.Cleanup()
-	}}
+	log.WithFields(log.Fields{"submissionId": submissionId, "sandboxId": sbx.BoxId}).Debug("Acquired sandbox")
+	task := preparedTask{sbx: sbx, cleanup: func() { pool.Pool.Release(sbx) }}
 	// Machinery does not give tasks a cancellable context. Download, host unzip,
 	// sandbox unzip and compiler limits bound each operation independently.
 	ctx := context.Background()
-	taskDir := sandboxes.TaskDir(lease.BoxId)
+	taskDir := sandboxes.TaskDir(sbx.BoxId)
 	task.testcases, err = prepareGraderFiles(ctx, sbx, taskDir, graderFilesURL, inputs, outputs)
 	if err == nil {
 		task.makefile = teacherMakefile(filepath.Join(taskDir, "files"))

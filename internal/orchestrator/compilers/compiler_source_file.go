@@ -1,6 +1,7 @@
 package compilers
 
 import (
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
@@ -51,6 +52,9 @@ func PrepareSourceFileCompiler(sandbox sandboxes.Sandbox, languageOrBuilder lang
 
 // Compiles the source files inside boxdir. Files are assumed to be in boxdir, and will be checked trough sandbox.
 func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesInsideBoxdir []string, messageLimitBytes int64) CompilerResult {
+	if messageLimitBytes <= 0 || messageLimitBytes > diagnostics.MaxBytes {
+		messageLimitBytes = diagnostics.MaxBytes
+	}
 	compileCommand := c.LanguageOrBuilder.GetCompilationCommand(mainSourceFilename, sourceFilenamesInsideBoxdir...)
 
 	result := c.Sandbox.Execute(compileCommand, c.Redirections)
@@ -66,13 +70,13 @@ func (c SourceFileCompiler) Compile(mainSourceFilename string, sourceFilenamesIn
 		if err != nil {
 			// A submission can remove or replace its own diagnostic output.
 			// This is a compilation failure, not a grader infrastructure failure.
-			return CompilerResult{StdoutStderr: err.Error()}
+			return CompilerResult{StdoutStderr: diagnostics.Limit(err.Error())}
 		}
-		return CompilerResult{StdoutStderr: string(data)}
+		return CompilerResult{StdoutStderr: diagnostics.Limit(string(data))}
 	} else {
 		return CompilerResult{
 			InternalError: result.Status == sandboxes.INTERNAL_ERROR || result.Status == sandboxes.PARSING_META_ERROR,
-			StdoutStderr:  result.Message,
+			StdoutStderr:  diagnostics.Limit(result.Message),
 		}
 	}
 }

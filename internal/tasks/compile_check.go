@@ -2,16 +2,15 @@ package tasks
 
 import (
 	"encoding/json"
-	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
 	log "github.com/sirupsen/logrus"
 )
 
-const compileMessageLimit = 64 << 10
+const compileMessageLimit = diagnostics.MaxBytes
 
 var compileCheckNow = time.Now
 
@@ -63,16 +62,6 @@ func compileCheck(graderFilesURL, submissionFilesURL string, submission models.S
 }
 
 func encodeCompileCheck(status, message string) (string, error) {
-	// JSON replaces invalid UTF-8 with a three-byte rune. Normalize before
-	// truncation so the decoded message, not just the raw compiler bytes, is bounded.
-	message = strings.ToValidUTF8(message, "\ufffd")
-	if len(message) > compileMessageLimit {
-		end := compileMessageLimit
-		for !utf8.RuneStart(message[end]) {
-			end--
-		}
-		message = message[:end]
-	}
-	b, err := json.Marshal(compileCheckResult{Status: status, Message: message})
+	b, err := json.Marshal(compileCheckResult{Status: status, Message: diagnostics.Limit(message)})
 	return string(b), err
 }

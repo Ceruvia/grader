@@ -11,6 +11,7 @@ import (
 
 	"github.com/Ceruvia/grader/internal/helper"
 	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/helper/files"
 )
 
@@ -35,7 +36,7 @@ func CreateIsolateSandbox(isolatePath string, boxId int) (*IsolateSandbox, error
 		BoxId:         boxId,
 		AllowedDirs:   []string{},
 		Filenames:     []string{},
-		FileSizeLimit: 100 * 1024, // defaults to 100KB
+		FileSizeLimit: 100 * 1024, // 100 MiB per file, with a 256 MiB aggregate tmpfs bound
 		MaxProcesses:  50,         // defaults to 50 processes
 	}
 
@@ -178,18 +179,18 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 	command := s.BuildCommand(runCommand, redirectionFiles)
 
 	cmd := exec.Command(command.Program, command.Args...)
-	_, err := cmd.CombinedOutput()
-
-	exitError, ok := err.(*exec.ExitError)
-
-	if exitError != nil && !ok {
-		return SandboxExecutionResult{
-			Status:   INTERNAL_ERROR,
-			ExitCode: exitError.ExitCode(),
-			Time:     -1,
-			Memory:   -1,
-			Message:  exitError.Error(),
+	var output diagnostics.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	err := cmd.Run()
+	if err != nil {
+		var exitError *exec.ExitError
+		if !errors.As(err, &exitError) || exitError.ExitCode() != 1 {
+			return SandboxExecutionResult{
+				Status: INTERNAL_ERROR, ExitCode: -1, Time: -1, Memory: -1,
+				Message: diagnostics.Limit(fmt.Sprintf("isolate launch/run failed: %v: %s", err, output.String())),
+			}
 		}
+		// Isolate's exit 1 reports a student-program failure in the metadata.
 	}
 
 	res, err := ParseMetaResult(redirectionFiles.MetaFilename)
@@ -201,13 +202,25 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 			Message: err.Error(),
 		}
 	}
+	if cmd.ProcessState.ExitCode() != 0 && res.Status == ZERO_EXIT_CODE {
+		return SandboxExecutionResult{
+			Status: INTERNAL_ERROR, ExitCode: -1, Time: -1, Memory: -1,
+			Message: "Isolate failed but metadata reported success",
+		}
+	}
 
 	return res
 }
 
 func (s *IsolateSandbox) Cleanup() error {
+	if err := unmountBoxStorage(s.BoxDir); err != nil {
+		return err
+	}
 	err := s.cleanUpIsolate()
-	return errors.Join(err, os.RemoveAll(TaskDir(s.BoxId)))
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(TaskDir(s.BoxId))
 }
 
 func (s *IsolateSandbox) initSandbox() error {
@@ -217,35 +230,31 @@ func (s *IsolateSandbox) initSandbox() error {
 	command.AddArgs("--init")
 
 	cmd := exec.Command(command.Program, command.Args...)
-	stdout, err := cmd.CombinedOutput()
+	var stdout diagnostics.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stdout
+	err := cmd.Run()
 
 	if err == nil && cmd.ProcessState.ExitCode() == 0 {
-		s.BoxDir = strings.Trim(string(stdout), "\n") + "/box"
+		s.BoxDir = strings.TrimSpace(stdout.String()) + "/box"
+		if err := mountBoxStorage(s.BoxDir); err != nil {
+			return errors.Join(fmt.Errorf("mount bounded box storage: %w", err), s.cleanUpIsolate())
+		}
 		return nil
 	}
 
-	if strings.Contains(err.Error(), "Box already exists") {
-		s.cleanUpIsolate()
-	}
-
-	if string(stdout) != "" {
-		err = errors.New(string(stdout))
-	}
-
-	return err
+	return fmt.Errorf("initialize isolate: %w: %s", err, stdout.String())
 }
 
 func (s *IsolateSandbox) cleanUpIsolate() error {
 	commandArgs := []string{"-b", strconv.Itoa(s.BoxId), "--cg", "--cleanup"}
 
 	cmd := exec.Command(s.IsolatePath, commandArgs...)
-	stdout, err := cmd.CombinedOutput()
-
-	if err != nil || cmd.ProcessState.ExitCode() != 0 {
-		return errors.New("Cannot clean up Isolate! " + string(stdout))
-	} else {
-		return err
+	var stdout diagnostics.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stdout
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("clean up isolate: %w: %s", err, stdout.String())
 	}
+	return nil
 }
 
 func parseFilenameFromPath(filepath string) string {

@@ -2,9 +2,13 @@ package tasks
 
 import (
 	"encoding/json"
+	"errors"
+
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator"
+	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +23,7 @@ func GradeBlackbox(
 	task, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grading task")
-		return "", err
+		return "", errors.New(diagnostics.Limit(err.Error()))
 	}
 	defer task.cleanup()
 
@@ -47,17 +51,16 @@ func GradeBlackbox(
 
 	result := orchestrator.GradeBlackboxSubmission(task.sbx, submission)
 
-	b, err := json.Marshal(result)
+	encoded, err := encodeGradingResult(submissionId, result)
 	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to marshal grading result")
-		return err.Error(), err
+		return "", err
 	}
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
 	}).Debug("Finish grading")
 
-	return string(b), nil
+	return encoded, nil
 }
 
 func GradeBlackboxWithBuilder(
@@ -71,7 +74,7 @@ func GradeBlackboxWithBuilder(
 	task, err := prepareTask(submissionId, graderFilesURL, submissionFilesURL, inputTestcases, outputTestcases)
 	if err != nil {
 		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to prepare grading task")
-		return "", err
+		return "", errors.New(diagnostics.Limit(err.Error()))
 	}
 	defer task.cleanup()
 
@@ -102,15 +105,35 @@ func GradeBlackboxWithBuilder(
 
 	result := orchestrator.GradeBlackboxSubmission(task.sbx, submission)
 
-	b, err := json.Marshal(result)
+	encoded, err := encodeGradingResult(submissionId, result)
 	if err != nil {
-		log.WithField("submissionId", submissionId).WithError(err).Error("Failed to marshal grading result")
-		return err.Error(), err
+		return "", err
 	}
 
 	log.WithFields(log.Fields{
 		"submissionId": submissionId,
 	}).Debug("Finish grading")
 
-	return string(b), nil
+	return encoded, nil
+}
+
+func encodeGradingResult(submissionId string, result evaluator.GradingResult) (string, error) {
+	if !result.IsSuccess && result.Status == orchestrator.StatusInternalError {
+		log.WithField("submissionId", submissionId).WithField("detail", diagnostics.Limit(result.ErrorMessage)).Error("Grading infrastructure failed")
+		// Backend maps Machinery FAILURE to XX. A successful task with
+		// is_success=false would instead blame the student with CE.
+		return "", errors.New("Internal grader error. Please contact course staff.")
+	}
+	// Bound diagnostics in aggregate as well as individually, so many failing
+	// cases cannot multiply 64 KiB into an oversized result-backend message.
+	remaining := diagnostics.MaxBytes
+	result.ErrorMessage = diagnostics.Prefix(result.ErrorMessage, remaining)
+	remaining -= len(result.ErrorMessage)
+	for i := range result.TestcaseGradingResult {
+		message := &result.TestcaseGradingResult[i].ErrorMessage
+		*message = diagnostics.Prefix(*message, remaining)
+		remaining -= len(*message)
+	}
+	b, err := json.Marshal(result)
+	return string(b), err
 }
