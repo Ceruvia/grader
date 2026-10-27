@@ -57,7 +57,7 @@ func TestEvaluatorRejectsUnsafeOutput(t *testing.T) {
 
 			done := make(chan evaluator.EngineRunResult, 1)
 			go func() {
-				done <- (evaluator.SimpleEvaluator{}).Evaluate(sbx, sandboxes.SandboxExecutionResult{Status: sandboxes.ZERO_EXIT_CODE}, expected, "1.out.actual")
+				done <- (evaluator.SimpleEvaluator{}).Evaluate(sbx, sandboxes.SandboxExecutionResult{Status: sandboxes.ZERO_EXIT_CODE}, expected, "1.out.actual", 64<<10)
 			}()
 			var result evaluator.EngineRunResult
 			select {

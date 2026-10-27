@@ -17,13 +17,21 @@ const (
 )
 
 func extractTeacherArchive(ctx context.Context, archivePath, destination string) error {
-	archive, err := zip.OpenReader(archivePath)
+	file, err := os.Open(archivePath)
 	if err != nil {
 		return err
 	}
-	defer archive.Close()
-	if len(archive.File) > teacherArchiveMaxFiles {
-		return errors.New("teacher archive exceeds 10000 entries")
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if err := checkTeacherZipDirectory(file, info.Size()); err != nil {
+		return err
+	}
+	archive, err := zip.NewReader(file, info.Size())
+	if err != nil {
+		return err
 	}
 	var expanded uint64
 	seen := make(map[string]bool, len(archive.File))

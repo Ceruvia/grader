@@ -97,7 +97,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 
 			tester.AssertNotError(t, err)
 
-			result, err := engine.Run("1.in", "../../../tests/c_test/hello_binary/1.out")
+			result, err := engine.Run("1.in", "../../../tests/c_test/hello_binary/1.out", 64<<10)
 
 			tester.AssertNotError(t, err)
 			if result.Verdict != models.VerdictAC {
@@ -128,7 +128,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 
 			tester.AssertNotError(t, err)
 
-			result, err := engine.Run("1.in", "../../../tests/c_test/hello/1.out")
+			result, err := engine.Run("1.in", "../../../tests/c_test/hello/1.out", 64<<10)
 
 			tester.AssertNotError(t, err)
 			if result.Verdict != models.VerdictRE || !strings.Contains(result.ErrorMessage, "No such file or directory") {

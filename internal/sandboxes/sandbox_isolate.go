@@ -119,6 +119,9 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	for _, dir := range s.AllowedDirs {
 		sandboxedCommand.AddArgs(fmt.Sprintf("--dir=%s:rw", dir))
 	}
+	// /tmp and /box are two views of the SAME bounded filesystem. A separate
+	// scratch mount would let a program bypass the aggregate byte/inode quota.
+	sandboxedCommand.AddArgs("--dir=/tmp=./box:rw")
 
 	sandboxedCommand.AddArgs("-E", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 	sandboxedCommand.AddArgs("-E", "HOME=/box")
@@ -224,6 +227,9 @@ func (s *IsolateSandbox) Cleanup() error {
 }
 
 func (s *IsolateSandbox) initSandbox() error {
+	if err := recoverBoxStorage(s.BoxId); err != nil {
+		return err
+	}
 	command := command.GetCommandBuilder(s.IsolatePath)
 	command.AddArgs("-b " + strconv.Itoa(s.BoxId))
 	command.AddArgs("--cg")

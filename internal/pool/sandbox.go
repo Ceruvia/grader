@@ -77,10 +77,14 @@ func (p *SandboxPool) initialize(slot sandboxSlot) (*sandboxes.IsolateSandbox, e
 			p.pool <- slot
 			return nil, err
 		}
+		slot.cleanupRequired = false
 	}
 	sb, err := sandboxes.CreateIsolateSandbox(slot.sb.IsolatePath, slot.sb.BoxId)
 	if err != nil {
-		slot.cleanupRequired = true
+		// A failed --init can leave isolate's lock marked uninitialized, which
+		// --cleanup rejects. Retry --init itself: it owns recovery of partial
+		// initialization. Usable boxes with failed cleanup still take the
+		// mandatory Cleanup path above before any initialization is attempted.
 		p.pool <- slot
 		return nil, err
 	}

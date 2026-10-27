@@ -43,10 +43,12 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 		return createFailGradingResult(StatusInternalError, err.Error())
 	}
 
-	var gradingResults []evaluator.EngineRunResult
-
-	for _, tc := range submission.GetTestcases() {
-		runResult, _ := engine.Run(tc.InputFilename, tc.ExpectedOutputPath)
+	testcases := submission.GetTestcases()
+	gradingResults := make([]evaluator.EngineRunResult, 0, len(testcases))
+	remaining := diagnostics.MaxBytes
+	for _, tc := range testcases {
+		runResult, _ := engine.Run(tc.InputFilename, tc.ExpectedOutputPath, remaining)
+		remaining -= len(runResult.ErrorMessage)
 		gradingResults = append(gradingResults, runResult)
 	}
 

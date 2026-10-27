@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
@@ -38,16 +39,16 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, languageOrBuilder langua
 	}, nil
 }
 
-func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputPath string) (evaluator.EngineRunResult, error) {
+func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputPath string, messageLimit int) (evaluator.EngineRunResult, error) {
 	expectedOutputFilenameInBox := filepath.Base(expectedOutputPath)
 	// Discard files a previous run may have replaced with symlinks before copying or redirecting.
 	for _, filename := range []string{inputFilenameInBox, expectedOutputFilenameInBox + ".actual"} {
 		if err := os.Remove(filepath.Join(ge.Sandbox.GetBoxdir(), filename)); err != nil && !os.IsNotExist(err) {
-			return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: err.Error()}, err
+			return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: budgetedError(err, messageLimit)}, err
 		}
 	}
 	if err := ge.Sandbox.AddFile(filepath.Join(filepath.Dir(expectedOutputPath), inputFilenameInBox)); err != nil {
-		return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: err.Error()}, err
+		return evaluator.EngineRunResult{Verdict: models.VerdictXX, HasErrorMessage: true, ErrorMessage: budgetedError(err, messageLimit)}, err
 	}
 	// Do not leave an earlier test's hidden input available to later tests.
 	defer os.Remove(filepath.Join(ge.Sandbox.GetBoxdir(), inputFilenameInBox))
@@ -92,9 +93,16 @@ func (ge BlackboxGradingEngine) Run(inputFilenameInBox, expectedOutputPath strin
 		redirectionFiles,
 	)
 
-	thisRunResult := ge.Evaluator.Evaluate(ge.Sandbox, execResult, expectedOutputPath, expectedOutputFilenameInBox+".actual")
+	thisRunResult := ge.Evaluator.Evaluate(ge.Sandbox, execResult, expectedOutputPath, expectedOutputFilenameInBox+".actual", messageLimit)
 	thisRunResult.InputFilename = inputFilenameInBox
 	thisRunResult.OutputFilename = expectedOutputFilenameInBox
 
 	return thisRunResult, nil
+}
+
+func budgetedError(err error, messageLimit int) string {
+	if messageLimit <= 0 {
+		return ""
+	}
+	return diagnostics.Prefix(err.Error(), min(messageLimit, diagnostics.MaxBytes))
 }

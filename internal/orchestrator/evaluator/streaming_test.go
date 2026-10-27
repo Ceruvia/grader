@@ -28,7 +28,7 @@ func TestEvaluatorBoundsFailureDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			sbx := &sandboxes.IsolateSandbox{BoxDir: dir}
-			got := (evaluator.SimpleEvaluator{}).Evaluate(sbx, sandboxes.SandboxExecutionResult{Status: tc.status, Message: strings.Repeat("\xff", 100000)}, "unused", "actual.out")
+			got := (evaluator.SimpleEvaluator{}).Evaluate(sbx, sandboxes.SandboxExecutionResult{Status: tc.status, Message: strings.Repeat("\xff", 100000)}, "unused", "actual.out", 64<<10)
 			if got.Verdict != tc.verdict || !got.HasErrorMessage || len(got.ErrorMessage) == 0 || len(got.ErrorMessage) > 64<<10 {
 				t.Fatalf("want %s with bounded nonempty diagnostic, got verdict=%s bytes=%d", tc.verdict.Code, got.Verdict.Code, len(got.ErrorMessage))
 			}
@@ -56,7 +56,7 @@ func TestEvaluatorPreservesExactComparison(t *testing.T) {
 				}
 			}
 			sbx := &sandboxes.IsolateSandbox{BoxDir: dir}
-			got := (evaluator.SimpleEvaluator{}).Evaluate(sbx, sandboxes.SandboxExecutionResult{Status: sandboxes.ZERO_EXIT_CODE}, filepath.Join(dir, "expected.out"), "actual.out")
+			got := (evaluator.SimpleEvaluator{}).Evaluate(sbx, sandboxes.SandboxExecutionResult{Status: sandboxes.ZERO_EXIT_CODE}, filepath.Join(dir, "expected.out"), "actual.out", 64<<10)
 			if got.Verdict != tc.verdict {
 				t.Fatalf("want %s, got %+v", tc.verdict.Code, got)
 			}

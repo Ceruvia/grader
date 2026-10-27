@@ -3,11 +3,49 @@
 package sandboxes
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 
 	"golang.org/x/sys/unix"
 )
+
+// isolate is installed with PREFIX=/usr/local in the grader image. Its root is
+// read from the same configuration as the executable, never from a box file.
+var isolateBoxRoot = sync.OnceValues(func() (string, error) {
+	file, err := os.Open("/usr/local/etc/isolate")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		key, value, ok := strings.Cut(scanner.Text(), "=")
+		if ok && strings.TrimSpace(key) == "box_root" {
+			root := strings.TrimSpace(value)
+			if !filepath.IsAbs(root) || filepath.Clean(root) == "/" {
+				return "", errors.New("invalid isolate box_root")
+			}
+			return root, nil
+		}
+	}
+	return "", errors.Join(errors.New("isolate box_root not configured"), scanner.Err())
+})
+
+func recoverBoxStorage(boxID int) error {
+	root, err := isolateBoxRoot()
+	if err != nil {
+		return fmt.Errorf("read isolate box_root: %w", err)
+	}
+	// A process restart does not remove mounts. Detach our known mount before
+	// --init recursively removes the old box, including partially initialized ones.
+	return unmountBoxStorage(filepath.Join(root, strconv.Itoa(boxID), "box"))
+}
 
 // A separate tmpfs per box enforces aggregate byte and inode limits even when
 // the parent overlay filesystem cannot support isolate's filesystem quotas.
