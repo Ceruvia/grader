@@ -122,6 +122,9 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 	// /tmp and /box are two views of the SAME bounded filesystem. A separate
 	// scratch mount would let a program bypass the aggregate byte/inode quota.
 	sandboxedCommand.AddArgs("--dir=/tmp=./box:rw")
+	// Keep ordinary devices, but never inherit writable /dev/shm, mqueue or
+	// devpts submounts from the privileged grader container.
+	sandboxedCommand.AddArgs("--dir=/dev:norec:dev")
 
 	sandboxedCommand.AddArgs("-E", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 	sandboxedCommand.AddArgs("-E", "HOME=/box")

@@ -255,7 +255,7 @@ func TestIsolate(t *testing.T) {
 					FileSizeLimit: 100 * 1024,
 					MaxProcesses:  50,
 				},
-				ExpectedCommand: "isolate -b 101 --dir=/tmp=./box:rw -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 101 --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "Limits",
@@ -270,7 +270,7 @@ func TestIsolate(t *testing.T) {
 					WallTimeLimit: 10000,
 					MemoryLimit:   10240,
 				},
-				ExpectedCommand: "isolate -b 102 --dir=/tmp=./box:rw -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 102 --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "Allowed Dir",
@@ -282,7 +282,7 @@ func TestIsolate(t *testing.T) {
 					FileSizeLimit: 100 * 1024,
 					MaxProcesses:  50,
 				},
-				ExpectedCommand: "isolate -b 103 --dir=/usr/bin:rw --dir=/var:rw --dir=/tmp=./box:rw -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 103 --dir=/usr/bin:rw --dir=/var:rw --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "Redirections",
@@ -300,7 +300,7 @@ func TestIsolate(t *testing.T) {
 					StandardErrorFilename:  "1.out.error",
 					MetaFilename:           "1.out.meta",
 				},
-				ExpectedCommand: "isolate -b 104 --dir=/tmp=./box:rw -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 104 --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "All",
@@ -321,7 +321,7 @@ func TestIsolate(t *testing.T) {
 					StandardErrorFilename:  "1.out.error",
 					MetaFilename:           "1.out.meta",
 				},
-				ExpectedCommand: "isolate -b 105 --dir=/usr/bin:rw --dir=/var:rw --dir=/tmp=./box:rw -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 105 --dir=/usr/bin:rw --dir=/var:rw --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 			},
 		}
 

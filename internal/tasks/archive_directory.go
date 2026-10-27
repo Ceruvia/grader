@@ -49,6 +49,19 @@ func checkTeacherZipDirectory(source io.ReaderAt, size int64) error {
 	directorySize := uint64(binary.LittleEndian.Uint32(footer[12:16]))
 	directoryOffset := uint64(binary.LittleEndian.Uint32(footer[16:20]))
 	directoryEnd := uint64(size - int64(len(tail)) + int64(end))
+	if directorySize == 0xffff && records != 0xffff && directoryOffset != 0xffffffff && directoryEnd >= 20 {
+		// Go 1.26 treats size=65535 as a ZIP64 selector, while newer readers
+		// treat it as a classic size. A locator hidden in the classic CEN
+		// comment can redirect only one reader to an entirely different
+		// directory. Reject that ambiguity before either eager reader runs.
+		var locator [20]byte
+		if _, err := source.ReadAt(locator[:], int64(directoryEnd)-20); err != nil {
+			return err
+		}
+		if binary.LittleEndian.Uint32(locator[0:4]) == 0x07064b50 {
+			return errors.New("ambiguous teacher ZIP64 directory selection")
+		}
+	}
 	if records == 0xffff || directorySize == 0xffffffff || directoryOffset == 0xffffffff {
 		var locator [20]byte
 		if directoryEnd < uint64(len(locator)) {
