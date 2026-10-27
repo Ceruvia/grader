@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 
@@ -38,7 +37,7 @@ func run() error {
 	defer pool.Pool.Close()
 
 	if err := machinery.LaunchWorker(cfg); err != nil {
-		return errors.New("grader worker stopped")
+		return fmt.Errorf("grader worker stopped: %w", err)
 	}
 	return nil
 }
