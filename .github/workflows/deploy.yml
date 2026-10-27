@@ -5,6 +5,11 @@ on:
     branches:
       - main
       - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+      - dev
   workflow_dispatch:
 
 env:
@@ -12,7 +17,56 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  # The suite calls isolate, so it runs in the grader image (systemd PID 1, cgroup v2), not on the
+  # bare runner. This is the same command sequence as AGENTS.md "Grader test run".
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          load: true
+          tags: ceruvia/grader:test
+          cache-from: type=gha,scope=grader-test
+          cache-to: type=gha,mode=max,scope=grader-test
+
+      - name: Start grader container
+        run: |
+          docker run -d --name grader-test --privileged --cgroupns=host \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw ceruvia/grader:test
+
+      - name: Wait for isolate
+        run: |
+          for _ in $(seq 60); do
+            docker exec grader-test systemctl is-active --quiet isolate.service && exit 0
+            sleep 1
+          done
+          docker logs grader-test | tail -50
+          echo "isolate.service did not become active within 60 s" >&2
+          exit 1
+
+      - name: Go vet and tests
+        run: docker exec -w /src grader-test sh -c 'go vet ./... && go test ./...'
+
+      - name: Remove container
+        if: always()
+        run: docker rm -f grader-test
+
+  publish:
+    # Pull requests only run the test job above.
+    if: github.event_name != 'pull_request'
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,18 +75,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Build
-        run: go build ./...
-
-      - name: Vet
-        run: go vet ./...
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -55,6 +97,7 @@ jobs:
             type=sha,format=long
             type=ref,event=branch
 
+      # No --target: the default (last) stage is `runtime`, without the Go toolchain.
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
