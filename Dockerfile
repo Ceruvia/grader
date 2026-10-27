@@ -34,6 +34,7 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
 # 1) Runtime deps. Student code needs build-essential, python3, ghc, zip and unzip.
+# python-is-python3 gives /usr/bin/python, which the Olympia makefiles call.
 # libcap2 and libsystemd0 (isolate runtime libs) come in with systemd. The apt lists
 # stay in the cache mount, so they are not in the image.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -42,7 +43,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       systemd systemd-sysv \
       ca-certificates build-essential zip unzip \
-      python3 ghc && \
+      python3 python-is-python3 ghc && \
     rm -f /lib/systemd/system/multi-user.target.wants/* \
       /etc/systemd/system/*.wants/* \
       /lib/systemd/system/local-fs.target.wants/* \
