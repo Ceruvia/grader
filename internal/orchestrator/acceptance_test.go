@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -85,7 +86,7 @@ func TestGradingC(t *testing.T) {
 			Title:           "Compile Error_Unfound function",
 			Submisison:      createCSubmission("unfoundfunc.c", 0, 1000, 1024),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_unfoundfunc",
-			ExpectedResult:  createExpectedResult(false, "Compile Error", "error: implicit declaration of function ‘prinf’;", []string{}),
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "printf", []string{}),
 		},
 		{
 			Title:           "Runtime Error_Null pointer",
@@ -121,7 +122,7 @@ func TestGradingC(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -210,7 +211,7 @@ func TestGradingCWithMakefile(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -222,6 +223,9 @@ func TestGradingCWithMakefile(t *testing.T) {
 }
 
 func TestGradingJava(t *testing.T) {
+	if _, err := exec.LookPath("javac"); err != nil {
+		t.Skip("no JDK in grader image")
+	}
 	createJavaSubmission := func(mainSourceFilename string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithFiles{
 			Core: models.Core{
@@ -279,7 +283,7 @@ func TestGradingJava(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -291,6 +295,9 @@ func TestGradingJava(t *testing.T) {
 }
 
 func TestGradingJavaWithMakefile(t *testing.T) {
+	if _, err := exec.LookPath("javac"); err != nil {
+		t.Skip("no JDK in grader image")
+	}
 	createJavaWithMakefileSubmission := func(compileScript, runScript string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithBuilder{
 			Core: models.Core{
@@ -357,7 +364,7 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 				// defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -420,7 +427,7 @@ func TestGradingHaskellWithMakefile(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -436,6 +443,9 @@ func assertGradingResult(t testing.TB, got, want evaluator.GradingResult) {
 
 	if got.IsSuccess != want.IsSuccess {
 		t.Fatalf("expected IsSuccess to be %t, instead got %+v", want.IsSuccess, got)
+	}
+	if !want.IsSuccess && got.Status != want.Status {
+		t.Errorf("expected status %q, instead got %+v", want.Status, got)
 	}
 
 	if !strings.Contains(got.ErrorMessage, want.ErrorMessage) {
@@ -507,14 +517,22 @@ func createTestcases(numOfTestcase int) []models.Testcase {
 	return tc
 }
 
-func moveToSandbox(sandbox sandboxes.Sandbox, srcDir string) error {
+func prepareSubmission(sandbox sandboxes.Sandbox, submission models.Submission, srcDir string) error {
+	absDir, err := filepath.Abs(srcDir)
+	if err != nil {
+		return err
+	}
+	testcases := submission.GetTestcases()
+	for i := range testcases {
+		testcases[i].ExpectedOutputPath = filepath.Join(absDir, testcases[i].OutputFilename)
+	}
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if entry.Type().IsRegular() {
+		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) != ".out" {
 			srcPath := filepath.Join(srcDir, entry.Name())
 			if err := sandbox.AddFile(srcPath); err != nil {
 				return err

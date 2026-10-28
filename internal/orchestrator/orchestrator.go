@@ -1,8 +1,7 @@
 package orchestrator
 
 import (
-	"strings"
-
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/languages"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/compilers"
@@ -11,31 +10,20 @@ import (
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
+const StatusInternalError = "Internal error"
+
 func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submission) evaluator.GradingResult {
 	if submission.GetLanguage() == nil {
 		return createFailGradingResult("Compile Error", languages.ErrLanguageNotExist.Error())
 	}
 
-	compiler, err := compilers.PrepareSourceFileCompiler(sandbox, submission.GetCompileLanguage())
+	compileResult, err := compilers.CompileSubmission(sandbox, submission, diagnostics.MaxBytes)
 	if err != nil {
-		return createFailGradingResult("Internal error", err.Error())
+		return createFailGradingResult(StatusInternalError, err.Error())
 	}
-
-	/* Compile source files to binary */
-
-	// Get source filenames inside of box
-	sourceFilenames := []string{}
-	if !submission.IsBuilder() { // If it's builder then just skip, unecessary
-		for _, filename := range sandbox.GetFilenamesInBox() {
-			for _, extention := range submission.GetLanguage().GetAllowedExtention() {
-				if strings.HasSuffix(filename, "."+extention) {
-					sourceFilenames = append(sourceFilenames, filename)
-				}
-			}
-		}
+	if compileResult.InternalError {
+		return createFailGradingResult(StatusInternalError, compileResult.StdoutStderr)
 	}
-
-	compileResult := compiler.Compile(submission.GetCompileFilenameOrScript(), sourceFilenames)
 
 	// Instantly return failed GradingResult if compilation failed
 	if !compileResult.IsSuccess {
@@ -52,13 +40,15 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 		submission.GetExecFilenameOrScript(),
 	)
 	if err != nil {
-		return createFailGradingResult("Internal error", err.Error())
+		return createFailGradingResult(StatusInternalError, err.Error())
 	}
 
-	var gradingResults []evaluator.EngineRunResult
-
-	for _, tc := range submission.GetTestcases() {
-		runResult, _ := engine.Run(tc.InputFilename, tc.OutputFilename)
+	testcases := submission.GetTestcases()
+	gradingResults := make([]evaluator.EngineRunResult, 0, len(testcases))
+	remaining := diagnostics.MaxBytes
+	for _, tc := range testcases {
+		runResult, _ := engine.Run(tc.InputFilename, tc.ExpectedOutputPath, remaining)
+		remaining -= len(runResult.ErrorMessage)
 		gradingResults = append(gradingResults, runResult)
 	}
 

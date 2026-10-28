@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	"github.com/RichardKnop/machinery/v2"
@@ -14,7 +15,10 @@ import (
 )
 
 func main() {
-	cfg := ceruviaConfig.GetAppConfig()
+	cfg, err := ceruviaConfig.GetAppConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	cnf := &config.Config{
 		Broker:          cfg.MQCfg.BrokerURL,

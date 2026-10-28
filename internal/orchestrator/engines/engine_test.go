@@ -2,6 +2,8 @@ package engines_test
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -75,15 +77,11 @@ func TestBlackboxGradingEngine(t *testing.T) {
 			}
 			defer sbx.Cleanup()
 
-			if err := sbx.AddFile("../../../tests/c_test/hello_binary/1.in"); err != nil {
-				t.Fatal(err)
+			binary := filepath.Join(t.TempDir(), "hello")
+			if output, err := exec.Command("gcc", "-o", binary, "../../../tests/c_test/hello/hello.c").CombinedOutput(); err != nil {
+				t.Fatalf("build hello: %v\n%s", err, output)
 			}
-
-			if err := sbx.AddFile("../../../tests/c_test/hello_binary/1.out"); err != nil {
-				t.Fatal(err)
-			}
-
-			if err := sbx.AddFile("../../../tests/c_test/hello_binary/hello"); err != nil {
+			if err := sbx.AddFile(binary); err != nil {
 				t.Fatal(err)
 			}
 
@@ -99,11 +97,17 @@ func TestBlackboxGradingEngine(t *testing.T) {
 
 			tester.AssertNotError(t, err)
 
-			result, err := engine.Run("1.in", "1.out")
+			result, err := engine.Run("1.in", "../../../tests/c_test/hello_binary/1.out", 64<<10)
 
 			tester.AssertNotError(t, err)
 			if result.Verdict != models.VerdictAC {
 				t.Errorf("expected Accepted status, instead got %+v", result)
+			}
+			if _, err := os.Lstat(filepath.Join(sbx.BoxDir, "1.out.meta")); !os.IsNotExist(err) {
+				t.Errorf("isolate meta file must not be in the box, stat error = %v", err)
+			}
+			if info, err := os.Lstat(filepath.Join(sandboxes.MetaDir(sbx.BoxId), "1.out.meta")); err != nil || !info.Mode().IsRegular() {
+				t.Errorf("isolate meta file must be in the host meta dir, got %v, %v", info, err)
 			}
 		})
 
@@ -113,14 +117,6 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer sbx.Cleanup()
-
-			if err := sbx.AddFile("../../../tests/c_test/hello/1.in"); err != nil {
-				t.Fatal(err)
-			}
-
-			if err := sbx.AddFile("../../../tests/c_test/hello/1.out"); err != nil {
-				t.Fatal(err)
-			}
 
 			engine, err := engines.CreateBlackboxGradingEngine(
 				sbx,
@@ -132,7 +128,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 
 			tester.AssertNotError(t, err)
 
-			result, err := engine.Run("1.in", "1.out")
+			result, err := engine.Run("1.in", "../../../tests/c_test/hello/1.out", 64<<10)
 
 			tester.AssertNotError(t, err)
 			if result.Verdict != models.VerdictRE || !strings.Contains(result.ErrorMessage, "No such file or directory") {

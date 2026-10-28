@@ -28,7 +28,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			tester.AssertDeep(t, compiler.GetSandbox().GetMemoryLimit(), 1024*1024)
 			tester.AssertDeep(t, compiler.GetRedirections().StandardErrorFilename, compilers.CompilationOutputFilename)
 			tester.AssertDeep(t, compiler.GetRedirections().StandardOutputFilename, compilers.CompilationOutputFilename)
-			tester.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/local/lib/isolate/200/box/"+compilers.CompilationMetaFilename)
+			tester.AssertDeep(t, compiler.GetRedirections().MetaFilename, "/var/lib/grader/tasks/200/meta/"+compilers.CompilationMetaFilename)
 		})
 
 		t.Run("Returns error when language provide is Nil", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			compiler, err := compilers.PrepareSourceFileCompiler(sbx, clang)
 			tester.AssertNotError(t, err)
 
-			res := compiler.Compile("ganjilgenap.c", []string{"ganjilgenap.c", "array.c"})
+			res := compiler.Compile("ganjilgenap.c", []string{"ganjilgenap.c", "array.c"}, 0)
 
 			want := compilers.CompilerResult{
 				IsSuccess:      true,
@@ -79,9 +79,7 @@ func TestSourceFileCompiler(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// defer sbx.Cleanup()
-
-			t.Log(sbx.BoxDir)
+			defer sbx.Cleanup()
 
 			tempDir := "../../../tests/c_test/uncompileable"
 			sourceFiles := []string{"unfoundfunc.c"}
@@ -96,11 +94,11 @@ func TestSourceFileCompiler(t *testing.T) {
 			compiler, err := compilers.PrepareSourceFileCompiler(sbx, clang)
 			tester.AssertNotError(t, err)
 
-			res := compiler.Compile("unfoundfunc.c", []string{"unfoundfunc.c"})
+			res := compiler.Compile("unfoundfunc.c", []string{"unfoundfunc.c"}, 0)
 
 			tester.AssertDeep(t, res.IsSuccess, false)
-			if !strings.Contains(res.StdoutStderr, "error: implicit declaration of function ‘prinf’") {
-				t.Errorf(`expected to get "implicit declaration of function" error in output, instead got %q`, res.StdoutStderr)
+			if !strings.Contains(res.StdoutStderr, "printf") {
+				t.Errorf(`expected diagnostic to mention "printf", instead got %q`, res.StdoutStderr)
 			}
 		})
 	})

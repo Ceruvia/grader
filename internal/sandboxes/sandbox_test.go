@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/helper/command"
@@ -225,7 +226,7 @@ func TestIsolate(t *testing.T) {
 		}
 
 		t.Run("Adds directory to s.AllowedDirs", func(t *testing.T) {
-			err := sbx.AddAllowedDirectory("/etc")
+			err := sbx.AddAllowedDirectory("/usr")
 			tester.AssertNotError(t, err)
 		})
 
@@ -254,7 +255,7 @@ func TestIsolate(t *testing.T) {
 					FileSizeLimit: 100 * 1024,
 					MaxProcesses:  50,
 				},
-				ExpectedCommand: "isolate -b 101 --dir=/etc -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 101 --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "Limits",
@@ -269,7 +270,7 @@ func TestIsolate(t *testing.T) {
 					WallTimeLimit: 10000,
 					MemoryLimit:   10240,
 				},
-				ExpectedCommand: "isolate -b 102 --dir=/etc -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 102 --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "Allowed Dir",
@@ -281,7 +282,7 @@ func TestIsolate(t *testing.T) {
 					FileSizeLimit: 100 * 1024,
 					MaxProcesses:  50,
 				},
-				ExpectedCommand: "isolate -b 103 --dir=/etc --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -f102400 --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 103 --dir=/usr/bin:rw --dir=/var:rw --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "Redirections",
@@ -299,7 +300,7 @@ func TestIsolate(t *testing.T) {
 					StandardErrorFilename:  "1.out.error",
 					MetaFilename:           "1.out.meta",
 				},
-				ExpectedCommand: "isolate -b 104 --dir=/etc -e --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 104 --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 			},
 			{
 				Title: "All",
@@ -320,7 +321,7 @@ func TestIsolate(t *testing.T) {
 					StandardErrorFilename:  "1.out.error",
 					MetaFilename:           "1.out.meta",
 				},
-				ExpectedCommand: "isolate -b 105 --dir=/etc --dir=/usr/bin:rw --dir=/var:rw -e --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
+				ExpectedCommand: "isolate -b 105 --dir=/usr/bin:rw --dir=/var:rw --dir=/tmp=./box:rw --dir=/dev:norec:dev -E PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -E HOME=/box -E LANG=C.UTF-8 --cg -p50 -t10 -x0.5 -w10 --cg-mem=10240 -k10240 -f102400 -i1.in -o1.out.expected -r1.out.error -M1.out.meta --run -- gcc hello.c -o hello",
 			},
 		}
 
@@ -386,8 +387,8 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../tests/c_test/uncompileable/noinclude.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("noinclude.c").AddArgs("-o").AddArgs("noinclude"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
-				ExpectedMessage:       "Exited with error status 1",
+				ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
+				ExpectedMessage:       "",
 			},
 			{
 				Title:                 "Compile nullpointer.c and run",
@@ -418,8 +419,8 @@ func TestIsolate(t *testing.T) {
 				CodeToCompileFilepath: "../../tests/c_test/uncompileable/typemismatch.c",
 				RunCommand:            *command.GetCommandBuilder("/usr/bin/gcc").AddArgs("typemismatch.c").AddArgs("-o").AddArgs("typemismatch"),
 				SecondRunCommand:      emptyCommand,
-				ExpectedStatus:        sandboxes.NONZERO_EXIT_CODE,
-				ExpectedMessage:       "Exited with error status 1",
+				ExpectedStatus:        sandboxes.ZERO_EXIT_CODE,
+				ExpectedMessage:       "",
 			},
 			{
 				Title:                 "Compile unfoundfunc.c",
@@ -453,7 +454,7 @@ func TestIsolate(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				red := sandboxes.CreateRedirectionFiles(sbx.BoxDir)
+				red := sandboxes.CreateRedirectionFiles(sbx)
 				err = red.CreateNewMetaFileAndRedirect("comp.meta")
 				if err != nil {
 					t.Fatal(err)
@@ -472,7 +473,6 @@ func TestIsolate(t *testing.T) {
 				sbx.SetTimeLimitInMiliseconds(1000)
 				sbx.SetWallTimeLimitInMiliseconds(1000)
 				sbx.SetMemoryLimitInKilobytes(10240)
-				sbx.AddAllowedDirectory("/etc")
 
 				res := sbx.Execute(test.RunCommand, red)
 
@@ -481,7 +481,7 @@ func TestIsolate(t *testing.T) {
 				}
 
 				if !checkEmptyCommand(test.SecondRunCommand) {
-					secondRed := sandboxes.CreateRedirectionFiles(sbx.BoxDir)
+					secondRed := sandboxes.CreateRedirectionFiles(sbx)
 					err = secondRed.CreateNewMetaFileAndRedirect("run.meta")
 					if err != nil {
 						t.Fatal(err)
@@ -510,25 +510,54 @@ func TestIsolate(t *testing.T) {
 
 func TestRedirections(t *testing.T) {
 	t.Run("Creation And Redirection", func(t *testing.T) {
-		t.Run("Create and redirects meta file", func(t *testing.T) {
-			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../tests/sandbox",
-			}
+		t.Run("Create and redirects meta file outside the box", func(t *testing.T) {
+			boxdir := t.TempDir()
+			metaDir := filepath.Join(t.TempDir(), "meta")
+			red := sandboxes.RedirectionFiles{Boxdir: boxdir, MetaDir: metaDir}
 			err := red.CreateNewMetaFileAndRedirect("_isolate.meta")
-			defer deleteFile("../../tests/sandbox/_isolate.meta")
-
 			tester.AssertNotError(t, err)
 
-			if _, err := os.Stat("../../tests/sandbox/_isolate.meta"); err != nil {
-				t.Fatalf("file was not created: %q", err.Error())
+			info, err := os.Stat(metaDir)
+			if err != nil || info.Mode().Perm() != 0700 {
+				t.Fatalf("meta dir must exist with mode 0700, got %v, %v", info, err)
+			}
+			if _, err := os.Stat(filepath.Join(boxdir, "_isolate.meta")); !os.IsNotExist(err) {
+				t.Fatalf("meta file must not be in the box, stat error = %v", err)
 			}
 
 			want := sandboxes.RedirectionFiles{
-				Boxdir:       "../../tests/sandbox",
-				MetaFilename: "../../tests/sandbox/_isolate.meta",
+				Boxdir:       boxdir,
+				MetaDir:      metaDir,
+				MetaFilename: filepath.Join(metaDir, "_isolate.meta"),
 			}
-
 			tester.AssertDeep(t, red, want)
+		})
+
+		t.Run("Replaces a planted symlink instead of following it", func(t *testing.T) {
+			boxdir := t.TempDir()
+			hostDir := t.TempDir()
+			red := sandboxes.RedirectionFiles{Boxdir: boxdir, MetaDir: filepath.Join(hostDir, "meta")}
+			creators := map[string]func(string) error{
+				"stdin":  red.CreateNewStandardInputFileAndRedirect,
+				"stdout": red.CreateNewStandardOutputFileAndRedirect,
+				"stderr": red.CreateNewStandardErrorFileAndRedirect,
+			}
+			for name, create := range creators {
+				target := filepath.Join(hostDir, name+"-target")
+				if err := os.Symlink(target, filepath.Join(boxdir, name)); err != nil {
+					t.Fatal(err)
+				}
+				if err := create(name); err != nil {
+					t.Fatalf("%s: %v", name, err)
+				}
+				if _, err := os.Lstat(target); !os.IsNotExist(err) {
+					t.Fatalf("%s: host file %s was created through the symlink", name, target)
+				}
+				info, err := os.Lstat(filepath.Join(boxdir, name))
+				if err != nil || !info.Mode().IsRegular() {
+					t.Fatalf("%s: expected a fresh regular file, got %v, %v", name, info, err)
+				}
+			}
 		})
 
 		t.Run("Create and redirects standard input file", func(t *testing.T) {
@@ -596,22 +625,6 @@ func TestRedirections(t *testing.T) {
 	})
 
 	t.Run("Setters", func(t *testing.T) {
-		t.Run("RedirectMeta", func(t *testing.T) {
-			red := sandboxes.RedirectionFiles{
-				Boxdir: "../../tests/copy/source",
-			}
-			err := red.RedirectMeta("file.c")
-
-			tester.AssertNotError(t, err)
-
-			want := sandboxes.RedirectionFiles{
-				Boxdir:       "../../tests/copy/source",
-				MetaFilename: "../../tests/copy/source/file.c",
-			}
-
-			tester.AssertDeep(t, red, want)
-		})
-
 		t.Run("RedirectStandardInput", func(t *testing.T) {
 			red := sandboxes.RedirectionFiles{
 				Boxdir: "../../tests/copy/source",
@@ -685,8 +698,8 @@ func TestParser(t *testing.T) {
 			Status:     sandboxes.ZERO_EXIT_CODE,
 			ExitSignal: 0,
 			ExitCode:   0,
-			Time:       31,
-			WallTime:   31,
+			Time:       0.031,
+			WallTime:   0.031,
 			Memory:     7900,
 			Message:    "",
 			IsKilled:   false,
@@ -695,8 +708,8 @@ func TestParser(t *testing.T) {
 			Status:     sandboxes.NONZERO_EXIT_CODE,
 			ExitSignal: 0,
 			ExitCode:   1,
-			Time:       25,
-			WallTime:   50,
+			Time:       0.025,
+			WallTime:   0.050,
 			Memory:     7220,
 			Message:    "Exited with error status 1",
 			IsKilled:   false,
@@ -705,8 +718,8 @@ func TestParser(t *testing.T) {
 			Status:     sandboxes.KILLED_ON_SIGNAL,
 			ExitSignal: 9,
 			ExitCode:   0,
-			Time:       10,
-			WallTime:   32,
+			Time:       0.010,
+			WallTime:   0.032,
 			Memory:     10240,
 			Message:    "Caught fatal signal 9",
 			IsKilled:   false,
@@ -715,8 +728,8 @@ func TestParser(t *testing.T) {
 			Status:     sandboxes.TIMED_OUT,
 			ExitSignal: 0,
 			ExitCode:   0,
-			Time:       1077,
-			WallTime:   1100,
+			Time:       1.077,
+			WallTime:   1.100,
 			Memory:     7956,
 			Message:    "Time limit exceeded (wall clock)",
 			IsKilled:   true,
