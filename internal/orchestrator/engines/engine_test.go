@@ -29,7 +29,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				languages.CGradingLanguage,
 				Limit,
 				evaluator.SimpleEvaluator{},
-				"hello.c",
+				"hello",
 			)
 
 			tester.AssertNotError(t, err)
@@ -50,7 +50,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				nil,
 				Limit,
 				evaluator.SimpleEvaluator{},
-				"hello.c",
+				"hello",
 			)
 
 			tester.AssertCustomError(t, err, languages.ErrLanguageNotExist)
@@ -62,7 +62,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				languages.CGradingLanguage,
 				Limit,
 				evaluator.SimpleEvaluator{},
-				"hello.c",
+				"hello",
 			)
 
 			tester.AssertCustomError(t, err, sandboxes.ErrSandboxIsNil)
@@ -92,7 +92,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				languages.CGradingLanguage,
 				Limit,
 				evaluator.SimpleEvaluator{},
-				"hello.c",
+				"hello",
 			)
 
 			tester.AssertNotError(t, err)
@@ -123,7 +123,7 @@ func TestBlackboxGradingEngine(t *testing.T) {
 				languages.CGradingLanguage,
 				Limit,
 				evaluator.SimpleEvaluator{},
-				"hello.c",
+				"hello",
 			)
 
 			tester.AssertNotError(t, err)

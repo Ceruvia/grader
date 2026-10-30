@@ -35,7 +35,7 @@ func CreateBlackboxGradingEngine(sbx sandboxes.Sandbox, languageOrBuilder langua
 		Sandbox:                    sbx,
 		LanguageOrBuilder:          languageOrBuilder,
 		Evaluator:                  evaluator,
-		ExecutableScriptOrFilename: languageOrBuilder.GetExecutableFilename(executableScriptOrFilename),
+		ExecutableScriptOrFilename: executableScriptOrFilename,
 	}, nil
 }
 

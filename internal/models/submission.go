@@ -37,9 +37,17 @@ func (s SubmissionWithBuilder) GetLanguage() languages.Language {
 func (s SubmissionWithBuilder) GetCompileLanguage() languages.Language {
 	return languages.GetLanguage(s.Builder)
 }
-func (s SubmissionWithBuilder) GetLimits() GradingLimit            { return s.Core.Limits }
-func (s SubmissionWithBuilder) GetTestcases() []Testcase           { return s.Core.Testcases }
-func (s SubmissionWithBuilder) GetExecFilenameOrScript() string    { return s.RunScript }
+func (s SubmissionWithBuilder) GetLimits() GradingLimit  { return s.Core.Limits }
+func (s SubmissionWithBuilder) GetTestcases() []Testcase { return s.Core.Testcases }
+
+// GetExecFilenameOrScript is the artifact the builder leaves, run as named.
+// Only a Java target names a class, whose artifact is <class>.jar.
+func (s SubmissionWithBuilder) GetExecFilenameOrScript() string {
+	if s.Core.Language == languages.JavaGradingLanguage.GetName() {
+		return languages.JavaGradingLanguage.GetExecutableFilename(s.RunScript)
+	}
+	return s.RunScript
+}
 func (s SubmissionWithBuilder) GetCompileFilenameOrScript() string { return s.CompileScript }
 func (s SubmissionWithBuilder) GetMakefile() string                { return s.Makefile }
 

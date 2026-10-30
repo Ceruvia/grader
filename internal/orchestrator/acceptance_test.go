@@ -26,6 +26,7 @@ const (
 	JAVA_MAKEFILE_TEST_ID_PREFIX    = 930
 	HASKELL_TEST_ID_PREFIX          = 940
 	HASKELL_MAKEFILE_TEST_ID_PREFIX = 950
+	DOTTED_NAME_TEST_ID_PREFIX      = 970
 )
 
 func TestGradingC(t *testing.T) {
@@ -218,6 +219,38 @@ func TestGradingCWithMakefile(t *testing.T) {
 			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
 
 			assertGradingResult(t, res, test.ExpectedResult)
+		})
+	}
+}
+
+// A dotted source basename or run target names the artifact exactly once:
+// my.sol.c builds and runs my.sol, and a makefile target program.out runs as is.
+func TestGradingDottedExecutableNames(t *testing.T) {
+	limits := createLimits(1000, 65536)
+	GradingTests := []struct {
+		Title      string
+		Submisison models.Submission
+	}{
+		{"C source my.sol.c", models.SubmissionWithFiles{Core: models.Core{Language: "C", Limits: limits, Testcases: createTestcases(1)}, MainSourceFilename: "my.sol.c"}},
+		{"C++17 source my.sol.cpp", models.SubmissionWithFiles{Core: models.Core{Language: "C++17", Limits: limits, Testcases: createTestcases(1)}, MainSourceFilename: "my.sol.cpp"}},
+		{"Makefile target program.out", models.SubmissionWithBuilder{Core: models.Core{Language: "C", Limits: limits, Testcases: createTestcases(1)}, Builder: "Makefile", RunScript: "program.out"}},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, DOTTED_NAME_TEST_ID_PREFIX+i)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sbx.Cleanup()
+
+			if err := prepareSubmission(sbx, test.Submisison, "../../tests/c_test/e2e/scs_dotted"); err != nil {
+				t.Fatal(err)
+			}
+
+			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC"}))
 		})
 	}
 }
