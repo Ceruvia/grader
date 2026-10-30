@@ -8,6 +8,7 @@ import (
 	"github.com/Ceruvia/grader/internal/orchestrator/engines"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
 	"github.com/Ceruvia/grader/internal/sandboxes"
+	log "github.com/sirupsen/logrus"
 )
 
 const StatusInternalError = "Internal error"
@@ -47,7 +48,11 @@ func GradeBlackboxSubmission(sandbox sandboxes.Sandbox, submission models.Submis
 	gradingResults := make([]evaluator.EngineRunResult, 0, len(testcases))
 	remaining := diagnostics.MaxBytes
 	for _, tc := range testcases {
-		runResult, _ := engine.Run(tc.InputFilename, tc.ExpectedOutputPath, remaining)
+		// A case that could not run is already XX in runResult. Log the cause for staff.
+		runResult, err := engine.Run(tc.InputFilename, tc.ExpectedOutputPath, remaining)
+		if err != nil {
+			log.WithFields(log.Fields{"submissionId": submission.GetId(), "testcase": tc.InputFilename}).WithError(err).Warn("Testcase could not run, recorded as XX")
+		}
 		remaining -= len(runResult.ErrorMessage)
 		gradingResults = append(gradingResults, runResult)
 	}

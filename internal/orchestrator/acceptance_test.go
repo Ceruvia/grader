@@ -27,6 +27,7 @@ const (
 	HASKELL_TEST_ID_PREFIX          = 940
 	HASKELL_MAKEFILE_TEST_ID_PREFIX = 950
 	DOTTED_NAME_TEST_ID_PREFIX      = 970
+	CASE_IDENTITY_TEST_ID           = 980
 )
 
 func TestGradingC(t *testing.T) {
@@ -252,6 +253,43 @@ func TestGradingDottedExecutableNames(t *testing.T) {
 
 			assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC"}))
 		})
+	}
+}
+
+// A case the grader cannot set up still reports which case it is, so the
+// Backend can store it as that case's internal error.
+func TestGradingCaseSetupFailureKeepsIdentity(t *testing.T) {
+	sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, CASE_IDENTITY_TEST_ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sbx.Cleanup()
+	submission := models.SubmissionWithFiles{
+		Core:               models.Core{Language: "C", Limits: createLimits(1000, 65536), Testcases: createTestcases(2)},
+		MainSourceFilename: "nextdir.c",
+	}
+	if err := prepareSubmission(sbx, submission, "../../tests/c_test/e2e/xx_next_input_dir"); err != nil {
+		t.Fatal(err)
+	}
+
+	res := orchestrator.GradeBlackboxSubmission(sbx, submission)
+
+	assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC", "XX"}))
+	for i, got := range res.TestcaseGradingResult {
+		wantIn, wantOut := fmt.Sprintf("%d.in", i+1), fmt.Sprintf("%d.out", i+1)
+		if got.InputFilename != wantIn || got.OutputFilename != wantOut {
+			t.Errorf("case %d: want identity %s/%s, got %+v", i+1, wantIn, wantOut, got)
+		}
+	}
+	// Staff see this message, so it must not reveal grader host paths.
+	xx := res.TestcaseGradingResult[1]
+	if !xx.HasErrorMessage || xx.ErrorMessage == "" {
+		t.Errorf("case 2 must carry an error message, got %+v", xx)
+	}
+	for _, hostPath := range []string{"/var/", "/tmp/", sbx.BoxDir} {
+		if strings.Contains(xx.ErrorMessage, hostPath) {
+			t.Errorf("case 2 message reveals host path %q: %q", hostPath, xx.ErrorMessage)
+		}
 	}
 }
 
