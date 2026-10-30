@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/models"
 	"github.com/Ceruvia/grader/internal/orchestrator/evaluator"
 	"github.com/Ceruvia/grader/internal/pool"
@@ -158,40 +159,15 @@ func TestGradingRestoresInputsBetweenCases(t *testing.T) {
 	}
 }
 
-// plantEnvCanary writes a canary into the grader env dump and restores the original afterwards.
-func plantEnvCanary(t *testing.T, canary string) {
-	t.Helper()
-	const envPath = "/run/grader/env"
-	if err := os.MkdirAll(filepath.Dir(envPath), 0700); err != nil {
-		t.Fatal(err)
-	}
-	original, originalErr := os.ReadFile(envPath)
-	if originalErr != nil && !os.IsNotExist(originalErr) {
-		t.Fatal(originalErr)
-	}
-	t.Cleanup(func() {
-		if originalErr == nil {
-			if err := os.WriteFile(envPath, original, 0600); err != nil {
-				t.Error(err)
-			}
-		} else if err := os.Remove(envPath); err != nil {
-			t.Error(err)
-		}
-	})
-	if err := os.WriteFile(envPath, []byte("BACKEND_API_TOKEN="+canary+"\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestCompileOutputSymlinkIsNotFollowed(t *testing.T) {
 	if err := pool.NewSandboxPool("/usr/local/bin/isolate", 1); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Pool.Close)
-	plantEnvCanary(t, "env-file-canary")
+	tester.PlantGraderEnv(t, "BACKEND_API_TOKEN=env-file-canary\n")
 	// The pool hands out box 1, so the host keeps the expected outputs in /var/lib/grader/tasks/1/files.
 	for name, target := range map[string]string{
-		"grader_env":      "/run/grader/env",
+		"grader_env":      tester.GraderEnvPath,
 		"expected_output": "/var/lib/grader/tasks/1/files/1.out",
 	} {
 		t.Run(name, func(t *testing.T) {

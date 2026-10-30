@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Ceruvia/grader/internal/helper/command"
+	"github.com/Ceruvia/grader/internal/helper/tester"
 	"github.com/Ceruvia/grader/internal/sandboxes"
 )
 
@@ -31,26 +32,7 @@ func containerIPv4(t *testing.T) string {
 
 func TestSandboxDoesNotExposeSecrets(t *testing.T) {
 	t.Setenv("BACKEND_API_TOKEN", "secret-canary")
-	const envPath = "/run/grader/env"
-	if err := os.MkdirAll(filepath.Dir(envPath), 0700); err != nil {
-		t.Fatal(err)
-	}
-	original, originalErr := os.ReadFile(envPath)
-	if originalErr != nil && !os.IsNotExist(originalErr) {
-		t.Fatal(originalErr)
-	}
-	t.Cleanup(func() {
-		if originalErr == nil {
-			if err := os.WriteFile(envPath, original, 0600); err != nil {
-				t.Error(err)
-			}
-		} else if err := os.Remove(envPath); err != nil {
-			t.Error(err)
-		}
-	})
-	if err := os.WriteFile(envPath, []byte("file-secret-canary\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	tester.PlantGraderEnv(t, "file-secret-canary\n")
 
 	// A host task dir with an expected output, like the one A1 keeps outside the box.
 	taskDir := filepath.Join("/var/lib/grader/tasks", "a2-probe")

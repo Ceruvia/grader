@@ -225,9 +225,36 @@ func TestIsolate(t *testing.T) {
 			AllowedDirs: []string{},
 		}
 
-		t.Run("Adds directory to s.AllowedDirs", func(t *testing.T) {
-			err := sbx.AddAllowedDirectory("/usr")
+		t.Run("Program in the box reads the directory only after it is added", func(t *testing.T) {
+			// /var/lib is not in isolate's default mounts, so only AddAllowedDirectory can expose it.
+			dir, err := os.MkdirTemp("/var/lib", "allowed-dir-")
 			tester.AssertNotError(t, err)
+			t.Cleanup(func() { _ = os.RemoveAll(dir) })
+			tester.AssertNotError(t, os.Chmod(dir, 0755))
+			tester.AssertNotError(t, os.WriteFile(filepath.Join(dir, "data.txt"), []byte("allowed-dir-canary\n"), 0644))
+
+			box, err := sandboxes.CreateIsolateSandbox("/usr/local/bin/isolate", 504)
+			tester.AssertNotError(t, err)
+			t.Cleanup(func() { _ = box.Cleanup() })
+			box.SetWallTimeLimitInMiliseconds(5000)
+			readData := func(out string) (sandboxes.SandboxExecutionResult, string) {
+				t.Helper()
+				red := sandboxes.CreateRedirectionFiles(box)
+				tester.AssertNotError(t, red.CreateNewMetaFileAndRedirect(out+".meta"))
+				tester.AssertNotError(t, red.CreateNewStandardOutputFileAndRedirect(out))
+				result := box.Execute(*command.GetCommandBuilder("/usr/bin/cat").AddArgs(filepath.Join(dir, "data.txt")), red)
+				data, err := sandboxes.ReadBoxFile(box, out, 1<<10)
+				tester.AssertNotError(t, err)
+				return result, string(data)
+			}
+
+			if result, data := readData("before.out"); result.Status == sandboxes.ZERO_EXIT_CODE || data != "" {
+				t.Fatalf("box read %s before it was allowed: %+v, %q", dir, result, data)
+			}
+			tester.AssertNotError(t, box.AddAllowedDirectory(dir))
+			if result, data := readData("after.out"); result.Status != sandboxes.ZERO_EXIT_CODE || data != "allowed-dir-canary\n" {
+				t.Fatalf("box could not read allowed %s: %+v, %q", dir, result, data)
+			}
 		})
 
 		t.Run("Returns error when directory doesn't exist", func(t *testing.T) {
