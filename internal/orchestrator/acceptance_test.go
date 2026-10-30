@@ -26,6 +26,8 @@ const (
 	JAVA_MAKEFILE_TEST_ID_PREFIX    = 930
 	HASKELL_TEST_ID_PREFIX          = 940
 	HASKELL_MAKEFILE_TEST_ID_PREFIX = 950
+	DOTTED_NAME_TEST_ID_PREFIX      = 970
+	CASE_IDENTITY_TEST_ID           = 980
 )
 
 func TestGradingC(t *testing.T) {
@@ -219,6 +221,75 @@ func TestGradingCWithMakefile(t *testing.T) {
 
 			assertGradingResult(t, res, test.ExpectedResult)
 		})
+	}
+}
+
+// A dotted source basename or run target names the artifact exactly once:
+// my.sol.c builds and runs my.sol, and a makefile target program.out runs as is.
+func TestGradingDottedExecutableNames(t *testing.T) {
+	limits := createLimits(1000, 65536)
+	GradingTests := []struct {
+		Title      string
+		Submisison models.Submission
+	}{
+		{"C source my.sol.c", models.SubmissionWithFiles{Core: models.Core{Language: "C", Limits: limits, Testcases: createTestcases(1)}, MainSourceFilename: "my.sol.c"}},
+		{"C++17 source my.sol.cpp", models.SubmissionWithFiles{Core: models.Core{Language: "C++17", Limits: limits, Testcases: createTestcases(1)}, MainSourceFilename: "my.sol.cpp"}},
+		{"Makefile target program.out", models.SubmissionWithBuilder{Core: models.Core{Language: "C", Limits: limits, Testcases: createTestcases(1)}, Builder: "Makefile", RunScript: "program.out"}},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, DOTTED_NAME_TEST_ID_PREFIX+i)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sbx.Cleanup()
+
+			if err := prepareSubmission(sbx, test.Submisison, "../../tests/c_test/e2e/scs_dotted"); err != nil {
+				t.Fatal(err)
+			}
+
+			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC"}))
+		})
+	}
+}
+
+// A case the grader cannot set up still reports which case it is, so the
+// Backend can store it as that case's internal error.
+func TestGradingCaseSetupFailureKeepsIdentity(t *testing.T) {
+	sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, CASE_IDENTITY_TEST_ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sbx.Cleanup()
+	submission := models.SubmissionWithFiles{
+		Core:               models.Core{Language: "C", Limits: createLimits(1000, 65536), Testcases: createTestcases(2)},
+		MainSourceFilename: "nextdir.c",
+	}
+	if err := prepareSubmission(sbx, submission, "../../tests/c_test/e2e/xx_next_input_dir"); err != nil {
+		t.Fatal(err)
+	}
+
+	res := orchestrator.GradeBlackboxSubmission(sbx, submission)
+
+	assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC", "XX"}))
+	for i, got := range res.TestcaseGradingResult {
+		wantIn, wantOut := fmt.Sprintf("%d.in", i+1), fmt.Sprintf("%d.out", i+1)
+		if got.InputFilename != wantIn || got.OutputFilename != wantOut {
+			t.Errorf("case %d: want identity %s/%s, got %+v", i+1, wantIn, wantOut, got)
+		}
+	}
+	// Staff see this message, so it must not reveal grader host paths.
+	xx := res.TestcaseGradingResult[1]
+	if !xx.HasErrorMessage || xx.ErrorMessage == "" {
+		t.Errorf("case 2 must carry an error message, got %+v", xx)
+	}
+	for _, hostPath := range []string{"/var/", "/tmp/", sbx.BoxDir} {
+		if strings.Contains(xx.ErrorMessage, hostPath) {
+			t.Errorf("case 2 message reveals host path %q: %q", hostPath, xx.ErrorMessage)
+		}
 	}
 }
 
