@@ -2,9 +2,13 @@ package sandboxes
 
 import (
 	"bufio"
+	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 )
 
 func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
@@ -34,13 +38,13 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 		return SandboxExecutionResult{}, err
 	}
 
-	time, _ := strconv.ParseFloat(result["time"], 64)
-	wallTime, _ := strconv.ParseFloat(result["time-wall"], 64)
+	time, timeErr := strconv.ParseFloat(result["time"], 64)
+	wallTime, wallErr := strconv.ParseFloat(result["time-wall"], 64)
 	memory, _ := strconv.Atoi(result["cg-mem"])
 	statusParsed := result["status"]
-	message := result["message"]
+	message := diagnostics.Limit(result["message"])
 	exitSignal, _ := strconv.Atoi(result["exitsig"])
-	exitCode, _ := strconv.Atoi(result["exitcode"])
+	exitCode, exitErr := strconv.Atoi(result["exitcode"])
 
 	isKilledParsed := result["killed"]
 
@@ -54,8 +58,19 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 		status = TIMED_OUT
 	case "XX":
 		status = INTERNAL_ERROR
+	case "":
+		// Isolate omits status on success, but always writes exitcode and times.
+		if exitErr != nil || exitCode != 0 || timeErr != nil || wallErr != nil {
+			return SandboxExecutionResult{}, fmt.Errorf("incomplete isolate success metadata")
+		}
 	default:
-		status = ZERO_EXIT_CODE
+		return SandboxExecutionResult{}, fmt.Errorf("unknown isolate status %q", statusParsed)
+	}
+	if _, present := result["time"]; present && (timeErr != nil || math.IsNaN(time) || math.IsInf(time, 0) || time < 0) {
+		return SandboxExecutionResult{}, fmt.Errorf("invalid isolate time")
+	}
+	if _, present := result["time-wall"]; present && (wallErr != nil || math.IsNaN(wallTime) || math.IsInf(wallTime, 0) || wallTime < 0) {
+		return SandboxExecutionResult{}, fmt.Errorf("invalid isolate wall time")
 	}
 
 	isKilled := false

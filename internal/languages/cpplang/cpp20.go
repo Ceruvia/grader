@@ -24,8 +24,8 @@ func (l Cpp20Language) GetCompilationCommand(mainSourceFilename string, sourceFi
 		AddArgs("-O2").AddArgs("-lm")
 }
 
-func (l Cpp20Language) GetExecutionCommand(mainSourceFilename string) command.CommandBuilder {
-	return *command.GetCommandBuilder("./" + l.GetExecutableFilename(mainSourceFilename))
+func (l Cpp20Language) GetExecutionCommand(binaryFilename string) command.CommandBuilder {
+	return *command.GetCommandBuilder("./" + binaryFilename)
 }
 
 func (l Cpp20Language) GetExecutableFilename(sourceFilename string) string {

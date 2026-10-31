@@ -5,40 +5,97 @@ on:
     branches:
       - main
       - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+      - dev
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Deploy target. Staging is the only one, production stays manual (Backend/DEPLOY.md 2.1).
+        type: choice
+        options: [staging]
+        default: staging
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  # The suite calls isolate, so it runs in the grader image (systemd PID 1, cgroup v2), not on the
+  # bare runner. This is the same command sequence as AGENTS.md "Grader test run".
+  test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          # The runner is thrown away, so skip the cleanup post step.
+          cleanup: false
+
+      - name: Build test image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          target: test
+          load: true
+          tags: ceruvia/grader:test
+          cache-from: type=gha,scope=grader-test
+          cache-to: type=gha,mode=max,scope=grader-test
+
+      - name: Start grader container
+        run: |
+          docker run -d --name grader-test --privileged --cgroupns=host \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw ceruvia/grader:test
+
+      - name: Wait for isolate
+        run: |
+          for _ in $(seq 60); do
+            docker exec grader-test systemctl is-active --quiet isolate.service && exit 0
+            sleep 1
+          done
+          docker logs grader-test | tail -50
+          echo "isolate.service did not become active within 60 s" >&2
+          exit 1
+
+      - name: Go vet and tests
+        run: docker exec -w /src grader-test sh -c 'go vet ./... && go test ./...'
+
+      - name: Remove container
+        if: always()
+        run: docker rm -f grader-test
+
+  # Builds the image while the tests run, so the Docker build is off the critical path. The image is
+  # pushed by digest only and carries no tag, so nothing can pull or deploy it by name. `publish` tags it
+  # after every test job of this commit passed, and only then hands the reference to the deploy job.
+  build:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
       packages: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Build
-        run: go build ./...
-
-      - name: Vet
-        run: go vet ./...
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          # The runner is thrown away, so skip the 5 to 14 s cleanup post step.
+          cleanup: false
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -46,7 +103,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
@@ -55,12 +112,163 @@ jobs:
             type=sha,format=long
             type=ref,event=branch
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      # Image references must be lowercase, the repository name is not.
+      - name: Lowercase the image name
+        run: echo "IMAGE=${REGISTRY}/${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # No --target: the default (last) stage is `runtime`, without the Go toolchain. It shares the isolate and
+          # base stages with the test image, so it reads the test job cache and exports none of its own.
+          cache-from: type=gha,scope=grader-test
+
+  # Gate: needs every test job and the build of the same commit. The tested digest gets its tags here, a
+  # manifest-only copy that takes a few seconds and keeps the digest. The VM runs exactly the bytes that
+  # were built next to the tests, even if someone re-pushes the tag.
+  publish:
+    # Pull requests only run the test jobs above.
+    if: github.event_name != 'pull_request'
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=${{ github.ref_name == 'main' }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+
+      # Exactly one tag match or the job fails. After the copy, every tag must resolve to the built digest.
+      - name: Tag the tested image and pick tag and digest
+        id: tag
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          tag=$(sed -nE 's/^.*:(sha-[0-9a-f]{40})$/\1/p' <<<"$TAGS")
+          if ! [[ $tag =~ ^sha-[0-9a-f]{40}$ ]]; then
+            echo "expected exactly one sha-<40 hex> tag, got: $TAGS" >&2
+            exit 1
+          fi
+          if ! [[ $DIGEST =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "expected a sha256 image digest from the build, got: $DIGEST" >&2
+            exit 1
+          fi
+          image="$REGISTRY/${IMAGE_NAME,,}"
+          args=()
+          while IFS= read -r t; do [[ -z $t ]] || args+=(-t "$t"); done <<<"$TAGS"
+          docker buildx imagetools create "${args[@]}" "$image@$DIGEST"
+          while IFS= read -r t; do
+            [[ -n $t ]] || continue
+            got=$(docker buildx imagetools inspect "$t" --format '{{.Manifest.Digest}}')
+            if [[ $got != "$DIGEST" ]]; then
+              echo "$t resolves to $got, expected $DIGEST" >&2
+              exit 1
+            fi
+          done <<<"$TAGS"
+          echo "tag=$tag@$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "$tag@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+  # Staging only: a push to `staging` (after publish succeeded) or a manual run on `staging`.
+  # `main` has no deploy job, production is deployed by hand. This repository's key in the `staging`
+  # environment can only run the forced command of Backend/DEPLOY.md 7.4 for the grader, which accepts
+  # `staging grader <tag>@<digest>` and takes a VM-wide lock, so a backend, grader and frontend deploy
+  # never overlap. Queued runs of this repo collapse to the newest one, which is what a branch deploy wants.
+  deploy-staging:
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/staging') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging')
+    needs: [publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+
+    steps:
+      # A push run whose commit is no longer the tip of `staging` was superseded by a newer push, which
+      # deploys the newer image. Skip it so an older image never lands after a newer one. A manual run
+      # always deploys.
+      - name: Skip a superseded push run
+        id: tip
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tip=$(gh api "repos/${{ github.repository }}/commits/staging" --jq .sha)
+          if [[ $tip != "$GITHUB_SHA" ]]; then
+            echo "::notice::Skipped: $GITHUB_SHA is no longer the tip of staging ($tip). The newer run deploys."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # GitHub-hosted runners cannot reach the VM's port 22 (the network in front of it refuses them). SSH goes
+      # through a dedicated SSH-only Cloudflare Tunnel: STAGING_SSH_HOST is its hostname, routed to ssh://localhost:22
+      # on the VM, behind a Cloudflare Access app whose only policy is Service Auth for one service token (Backend/DEPLOY.md 7.4).
+      - name: Install cloudflared (pinned, checksum verified)
+        if: steps.tip.outputs.skip != 'true'
+        env:
+          CLOUDFLARED_VERSION: 2026.10.5
+          CLOUDFLARED_SHA256: e1bc0cf084fd9e590554fe769a86b1db46701c3f847a43d902f7b974a4e16298
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/cloudflared"
+          curl -fsSL --retry 3 -o "$bin" "https://github.com/cloudflare/cloudflared/releases/download/$CLOUDFLARED_VERSION/cloudflared-linux-amd64"
+          echo "$CLOUDFLARED_SHA256  $bin" | sha256sum -c -
+          chmod 755 "$bin"
+          "$bin" --version
+
+      - name: Deploy over SSH
+        if: steps.tip.outputs.skip != 'true'
+        env:
+          COMPONENT: grader
+          TAG: ${{ needs.publish.outputs.tag }}
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+          # cloudflared reads the service token from these, never from its command line
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          for v in TAG STAGING_SSH_HOST STAGING_SSH_PORT STAGING_SSH_USER STAGING_SSH_KEY STAGING_SSH_KNOWN_HOSTS TUNNEL_SERVICE_TOKEN_ID TUNNEL_SERVICE_TOKEN_SECRET; do
+            [[ -n ${!v} ]] || { echo "$v is empty. Secrets belong to the 'staging' environment (Backend/DEPLOY.md 7.4)." >&2; exit 1; }
+          done
+          umask 077
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$STAGING_SSH_KEY" > "$dir/key"
+          printf '%s\n' "$STAGING_SSH_KNOWN_HOSTS" > "$dir/known_hosts"
+          ssh -i "$dir/key" -o IdentitiesOnly=yes -o IdentityAgent=none -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ProxyCommand="$RUNNER_TEMP/cloudflared access ssh --hostname %h" \
+            -o ConnectTimeout=20 -o ServerAliveInterval=30 \
+            -p "$STAGING_SSH_PORT" "$STAGING_SSH_USER@$STAGING_SSH_HOST" "staging $COMPONENT $TAG"

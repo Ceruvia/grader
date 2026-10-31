@@ -42,7 +42,7 @@ func TestGetCompilationCommand(t *testing.T) {
 }
 
 func TestGetExecutionCommand(t *testing.T) {
-	got := CGradingLanguage.GetExecutionCommand("main.c")
+	got := CGradingLanguage.GetExecutionCommand("main")
 	want := "./main "
 	tester.AssertDeep(t, got.BuildFullCommand(), want)
 }

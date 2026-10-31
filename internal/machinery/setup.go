@@ -1,11 +1,6 @@
 package machinery
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-	"strings"
-
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
@@ -37,8 +32,10 @@ func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 	server := machinery.NewServer(cnf, broker, backend, lock)
 
 	tasksMap := map[string]interface{}{
-		"blackbox":              ceruviaTasks.GradeBlackbox,
-		"blackbox_with_builder": ceruviaTasks.GradeBlackboxWithBuilder,
+		"blackbox":                   ceruviaTasks.GradeBlackbox,
+		"blackbox_with_builder":      ceruviaTasks.GradeBlackboxWithBuilder,
+		"compile_check":              ceruviaTasks.CompileCheck,
+		"compile_check_with_builder": ceruviaTasks.CompileCheckWithBuilder,
 	}
 
 	if err := server.RegisterTasks(tasksMap); err != nil {
@@ -73,48 +70,7 @@ func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
 	}
 
 	// After task execution
-	postTaskHandler := func(signature *tasks.Signature) {
-		submissionId := signature.Args[0].Value.(string)
-
-		// Send taskId to BE's callback endpoint
-		callbackUrl := strings.Replace(cfg.BackendCallbackEndpoint, "{submission_id}", submissionId, -1)
-		callbackToken := cfg.BackendAPIToken
-
-		payload, err := json.Marshal(struct {
-			TaskId string `json:"task_id"`
-		}{
-			TaskId: signature.UUID,
-		})
-
-		r, err := http.NewRequest("POST", callbackUrl, bytes.NewBuffer(payload))
-		if err != nil {
-			log.WithFields(log.Fields{
-				"task":         signature.Name,
-				"uuid":         signature.UUID,
-				"submissionId": signature.Args[0].Value,
-			}).Error("Error while creating callback request: ", err)
-		}
-		r.Header.Add("Content-Type", "application/json")
-		r.Header.Add("X-API-Key", callbackToken)
-
-		client := &http.Client{}
-		res, err := client.Do(r)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"task":         signature.Name,
-				"uuid":         signature.UUID,
-				"submissionId": signature.Args[0].Value,
-			}).Error("Error while sending callback request: ", err)
-		}
-
-		defer res.Body.Close()
-
-		log.WithFields(log.Fields{
-			"task":         signature.Name,
-			"uuid":         signature.UUID,
-			"submissionId": signature.Args[0].Value,
-		}).Info("Finished task")
-	}
+	postTaskHandler := newPostTaskHandler(cfg)
 
 	worker.SetPostTaskHandler(postTaskHandler)
 	worker.SetErrorHandler(errorHandler)

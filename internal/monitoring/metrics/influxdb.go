@@ -44,14 +44,21 @@ func InitMetricPusher(cfg *config.ServerConfig) {
 	}
 }
 
-func RunMetricsPusher() {
+// RunMetricsPusher takes the pool it reports on, so it can only start after
+// the pool exists. It stops when ctx ends.
+func RunMetricsPusher(ctx context.Context, sandboxPool *pool.SandboxPool) {
 	defer Client.Close()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		idle := float64(pool.Pool.IdleCount())
-		busy := float64(pool.Pool.BusyCount())
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		idle := float64(sandboxPool.IdleCount())
+		busy := float64(sandboxPool.BusyCount())
 
 		var cpuPct float64
 		if pcts, err := cpu.Percent(0, false); err == nil && len(pcts) > 0 {
@@ -78,7 +85,7 @@ func RunMetricsPusher() {
 			time.Now(),
 		)
 
-		if err := writeAPI.WritePoint(context.Background(), p); err != nil {
+		if err := writeAPI.WritePoint(ctx, p); err != nil {
 			log.WithError(err).Error("failed to write metrics to InfluxDB")
 		} else {
 			if srvConfig.GraderEnv == "testing" {
