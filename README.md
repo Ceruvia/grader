@@ -27,8 +27,9 @@ in the Backend repository. This repository holds only the grader code, its image
    stay outside and each input is copied in just before its own test runs.
 4. It downloads the submission archive (`submission.zip`) and unzips it inside the box. Student files
    never overwrite teacher files. When the teacher sent a makefile, student makefiles are removed.
-   Student Haskell build products (`.o`, `.hi`, `.dyn_o`, `.dyn_hi`) are skipped so stale objects
-   cannot bypass compilation of the submitted source. Teacher-provided build products are preserved.
+   After extraction, student build products (`.o`, `.hi`, `.dyn_o`, `.dyn_hi`, `.p_o`, `.p_hi`,
+   `.gch`, `.pyc`, and `__pycache__` directories) are removed by their effective filenames so
+   cached objects cannot bypass source compilation. Teacher-provided build products are preserved.
 5. It compiles and runs the code in isolate v2.1 with cgroup limits, then compares the output with the
    expected `.out` file.
 6. It stores the result in the Machinery result backend (`QUEUE_RESULT_URL`) and calls the backend
@@ -213,7 +214,7 @@ docker exec grader-test systemctl is-active --quiet isolate.service
 Then run the whole suite and remove the container:
 
 ```bash
-docker exec -w /src grader-test sh -c 'go vet ./... && go test ./...'
+docker exec -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
 docker rm -f grader-test
 ```
 
@@ -259,7 +260,7 @@ Known gaps if you use it:
 
 | Job | When | What |
 |---|---|---|
-| `test` | always | Builds the `test` image, starts it privileged, waits for `isolate.service`, runs `go vet ./... && go test ./...` inside it. |
+| `test` | always | Builds the `test` image, starts it privileged, waits for `isolate.service`, runs `go vet -tags integration ./... && go test -tags integration ./...` inside it. |
 | `build` | not on pull requests | Builds the `runtime` image and pushes it to GHCR by digest, with no tag. |
 | `publish` | not on pull requests, after `test` and `build` | Tags the tested digest `sha-<commit>`, the branch name, and `latest` on `main`. |
 | `deploy-staging` | push to `staging` or a manual run on `staging` | Connects over SSH through a Cloudflare tunnel and runs the staging deploy for `grader sha-<commit>@<digest>` (`Backend/DEPLOY.md` section 7.4). |

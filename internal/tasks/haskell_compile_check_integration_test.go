@@ -54,16 +54,19 @@ func TestHaskellCompileCheck(t *testing.T) {
 			for _, tc := range []struct {
 				name, source, status string
 				stale                bool
+				suffix               string
 			}{
-				{"correct_answer", answer, "compiled", false},
-				{"syntax_error", broken, "compile_error", false},
-				{"syntax_error_with_stale_products", broken, "compile_error", true},
+				{"correct_answer", answer, "compiled", false, ""},
+				{"syntax_error", broken, "compile_error", false, ""},
+				{"syntax_error_with_stale_products", broken, "compile_error", true, ""},
+				{"syntax_error_with_VMS_versioned_products", broken, "compile_error", true, ";1"},
+				{"syntax_error_with_control_suffix_products", broken, "compile_error", true, "\x01"},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					submission := map[string]string{"Solution.hs": tc.source}
 					if tc.stale {
 						for name, content := range products {
-							submission[name] = content
+							submission[name+tc.suffix] = content
 						}
 					}
 					// archiveServer zeroes mtimes just like Backend's zip.Writer.Create:
