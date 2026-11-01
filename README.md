@@ -27,6 +27,8 @@ in the Backend repository. This repository holds only the grader code, its image
    stay outside and each input is copied in just before its own test runs.
 4. It downloads the submission archive (`submission.zip`) and unzips it inside the box. Student files
    never overwrite teacher files. When the teacher sent a makefile, student makefiles are removed.
+   Student Haskell build products (`.o`, `.hi`, `.dyn_o`, `.dyn_hi`) are skipped so stale objects
+   cannot bypass compilation of the submitted source. Teacher-provided build products are preserved.
 5. It compiles and runs the code in isolate v2.1 with cgroup limits, then compares the output with the
    expected `.out` file.
 6. It stores the result in the Machinery result backend (`QUEUE_RESULT_URL`) and calls the backend

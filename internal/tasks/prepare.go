@@ -22,9 +22,13 @@ const (
 	unzipMemoryLimitKb   = 262144
 )
 
+// GHC trusts same-mtime build products without parsing the student's source.
+var studentBuildProducts = []string{"*.o", "*.hi", "*.dyn_o", "*.dyn_hi"}
+
 // DownloadFileToSandbox downloads an archive into the box and unzips it there.
-// Files already in the box (teacher files) are never overwritten. Root entries
-// named in remove are deleted after the unzip, whatever their type.
+// Files already in the box (teacher files) are never overwritten, and build
+// products in the archive are never extracted. Root entries named in remove
+// are deleted after the unzip, whatever their type.
 func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename, url string, remove ...string) error {
 	if err := files.DownloadFile(ctx, sbx.GetBoxdir()+"/"+filename, url); err != nil {
 		return err
@@ -40,7 +44,7 @@ func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename,
 	sbx.SetMemoryLimitInKilobytes(unzipMemoryLimitKb)
 
 	result := sbx.Execute(
-		*command.GetCommandBuilder("/usr/bin/unzip").AddArgs("-q", "-n", filename),
+		*command.GetCommandBuilder("/usr/bin/unzip").AddArgs("-q", "-n", filename, "-x").AddArgs(studentBuildProducts...),
 		red,
 	)
 
