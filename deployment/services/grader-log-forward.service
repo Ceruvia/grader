@@ -5,9 +5,13 @@ Before=grader-docker.service
 
 [Service]
 # The journal stays the primary copy (journalctl -u grader-docker.service). --since the container
-# start, so a container restart does not replay the persistent journal of earlier runs.
+# start to the microsecond (--timestamp=us), so a container restart, even within the same second,
+# does not replay the persistent journal of earlier runs.
 # shortcut: a restart of this unit alone replays this container run once, add a cursor if that ever matters.
-ExecStart=/bin/sh -c 'exec journalctl --follow --output=cat --unit=grader-docker.service --since="$$(systemctl show -P UserspaceTimestamp)"'
+ExecStart=/bin/sh -c 'exec journalctl --follow --output=cat --unit=grader-docker.service --since="$$(systemctl show --timestamp=us -P UserspaceTimestamp)"'
+# Stops after the grader (Before= reversed). Give journalctl a moment to copy the grader's last
+# lines and "Stopped Code Grader Service." before it gets SIGTERM.
+ExecStop=/bin/sleep 1
 StandardOutput=file:/dev/docker-log
 Restart=always
 RestartSec=5
