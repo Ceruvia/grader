@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,9 +24,21 @@ const (
 )
 
 // DownloadFileToSandbox downloads an archive into the box and unzips it there.
-// Files already in the box (teacher files) are never overwritten. Root entries
-// named in remove are deleted after the unzip, whatever their type.
+// Teacher files are never overwritten or removed. Student build products are
+// removed by their extracted names before any compiler runs. Root entries named
+// in remove are deleted after the unzip, whatever their type.
 func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename, url string, remove ...string) error {
+	protected := make(map[string]bool)
+	if err := filepath.WalkDir(sbx.GetBoxdir(), func(path string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		protected[path] = true
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	if err := files.DownloadFile(ctx, sbx.GetBoxdir()+"/"+filename, url); err != nil {
 		return err
 	}
@@ -52,6 +65,34 @@ func DownloadFileToSandbox(ctx context.Context, sbx sandboxes.Sandbox, filename,
 		if err := os.RemoveAll(filepath.Join(sbx.GetBoxdir(), name)); err != nil {
 			return err
 		}
+	}
+
+	// Info-ZIP normalizes names (e.g. Solution.o;1 becomes Solution.o), so
+	// filtering archive names with unzip -x cannot enforce this boundary.
+	if err := filepath.WalkDir(sbx.GetBoxdir(), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if protected[path] {
+			return nil
+		}
+		switch filepath.Ext(entry.Name()) {
+		case ".o", ".hi", ".dyn_o", ".dyn_hi", ".p_o", ".p_hi", ".gch", ".pyc":
+		default:
+			if entry.Name() != "__pycache__" {
+				return nil
+			}
+		}
+		// WalkDir and RemoveAll do not follow student symlinks.
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return fs.SkipDir
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	filenames, err := files.GetFilenamesInDir(sbx.GetBoxdir())
