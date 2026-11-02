@@ -59,11 +59,15 @@ RUN rm /usr/lib/ghc/package.conf.d && cp -a /var/lib/ghc/package.conf.d /usr/lib
 COPY --from=isolate /out/ /
 
 # 3) Enable your systemd units
-COPY deployment/services/grader-docker.service /etc/systemd/system/
-COPY deployment/services/dump-env.service /etc/systemd/system/
-RUN systemctl enable isolate.service dump-env.service grader-docker.service
+COPY deployment/services/grader-docker.service deployment/services/dump-env.service \
+     deployment/services/grader-log-forward.service /etc/systemd/system/
+RUN systemctl enable isolate.service dump-env.service grader-docker.service grader-log-forward.service
+
+# 4) Entrypoint: keeps Docker's stdout open for grader-log-forward.service, then execs /sbin/init.
+COPY deployment/docker-init.sh /usr/local/bin/docker-init
 
 VOLUME [ "/sys/fs/cgroup" ]
+CMD ["/usr/local/bin/docker-init"]
 
 # ---------- build ----------
 FROM golang:1.26 AS build
@@ -85,10 +89,8 @@ COPY --from=golang:1.26 /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:$PATH
 WORKDIR /src
 COPY . /src
-CMD ["/sbin/init"]
 
 # ---------- runtime ----------
 FROM base AS runtime
 WORKDIR /grader
 COPY --from=build /out/grader /usr/local/bin/grader
-CMD ["/sbin/init"]
