@@ -154,9 +154,11 @@ The isolate boxes live inside the container's cgroup, so compilers and student p
 with the grader (`Backend/DEPLOY.md` section 7.5). Size `GRADER_WORKER_COUNT` with it.
 
 The grader runs as a systemd unit inside the container, so its logs (tasks, isolate errors, callback
-errors) go to the systemd journal in the container. `docker logs` and `docker compose logs` do not show
-grading or callback logs. On the VM, from `Backend/deployments/docker`, use the compose file of the
-environment (`docker-compose.prod.yaml` or `docker-compose.staging.yaml`):
+errors) go to the systemd journal in the container. `grader-log-forward.service` copies the lines of
+`grader-docker.service` from the journal to the container's stdout, so `docker logs` and
+`docker compose logs grader` show them too (images from 2 Nov 2026 on). The journal stays the full
+copy. On the VM, from `Backend/deployments/docker`, use the compose file of the environment
+(`docker-compose.prod.yaml` or `docker-compose.staging.yaml`):
 
 ```bash
 docker compose -f docker-compose.staging.yaml exec grader journalctl -u grader-docker.service -n 100 --no-pager
