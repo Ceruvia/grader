@@ -72,10 +72,18 @@ jobs:
         if: always()
         run: docker rm -f grader-test
 
+  # Static and security scans (govulncheck, gosec, gitleaks, grype on the image). A failure here stops the
+  # image push, since `build` needs it.
+  security:
+    uses: ./.github/workflows/security.yml
+    permissions:
+      contents: read
+
   # Builds the image while the tests run, so the Docker build is off the critical path. The image is
   # pushed by digest only and carries no tag, so nothing can pull or deploy it by name. `publish` tags it
   # after every test job of this commit passed, and only then hands the reference to the deploy job.
   build:
+    needs: [security]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:

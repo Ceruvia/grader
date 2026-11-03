@@ -1,0 +1,14 @@
+# Security lint only: gosec at high confidence. Style linters are not part of this gate.
+# Test files are skipped: they are not shipped, and their file modes and subprocesses are noise.
+# To widen: lower confidence to medium, review the findings, fix them, then commit.
+version: "2"
+run:
+  tests: false
+linters:
+  default: none
+  enable:
+    - gosec
+  settings:
+    gosec:
+      confidence: high
+      severity: medium

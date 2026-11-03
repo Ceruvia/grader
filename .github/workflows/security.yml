@@ -1,0 +1,111 @@
+name: Security
+
+# Pushes and pull requests that deploy.yml already covers (main, staging, dev) reach this file through
+# its `security` job, which gates the image push. Everything else runs here directly, plus a weekly run
+# on the default branch to catch advisories published after the last push.
+on:
+  push:
+    branches-ignore: [main, staging]
+  pull_request:
+    branches-ignore: [main, staging, dev]
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned, bump together with a review of the new release. sha256 is of the linux amd64 archive.
+  GOVULNCHECK_VERSION: v1.1.4
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+  GRYPE_VERSION: 0.121.1
+  GRYPE_SHA256: bc3ea3f9e6fd56ac781c08c6c5e614271b79f438200757f6932085c19b0a4657
+
+jobs:
+  # Fails only on vulnerabilities whose vulnerable symbol this code can reach.
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" -tags integration ./...
+
+  # gosec only, config in .golangci.yml.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: golangci-lint (gosec)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          args: --build-tags integration
+
+  # Whole history, not only the new commits: a secret that was removed later is still leaked.
+  # Exceptions: .gitleaksignore.
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          tgz="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl -fsSL --retry 3 -o "$tgz" "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$RUNNER_TEMP" gitleaks
+
+      - name: gitleaks
+        run: '"$RUNNER_TEMP/gitleaks" git --no-banner --redact -v .'
+
+  # Scans the image that deploy.yml would push: same Dockerfile, default (runtime) target. Fails on
+  # Critical and High with a fix available. Exceptions: .grype.yaml.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          cleanup: false
+
+      - name: Build image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          load: true
+          tags: ceruvia/grader:scan
+          cache-from: type=gha,scope=grader-test
+
+      - name: Install grype (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          tgz="$RUNNER_TEMP/grype.tar.gz"
+          curl -fsSL --retry 3 -o "$tgz" "https://github.com/anchore/grype/releases/download/v$GRYPE_VERSION/grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+          echo "$GRYPE_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$RUNNER_TEMP" grype
+
+      - name: grype
+        run: '"$RUNNER_TEMP/grype" docker:ceruvia/grader:scan --only-fixed --fail-on high'
