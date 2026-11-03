@@ -1,18 +1,35 @@
 package config
 
 import (
-	"log"
+	"errors"
+	"fmt"
+	"net/url"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/Ceruvia/grader/internal/helper/env"
 	"github.com/joho/godotenv"
 )
 
+// Brokers selectable with QUEUE_BROKER.
+const (
+	BrokerAMQP   = "amqp"
+	BrokerPubSub = "gcppubsub"
+)
+
 type MessageQueueConfig struct {
-	BrokerURL        string
-	ResultBackendURL string
-	QueueName        string
-	ResultsExpireIn  int
+	Broker string
+
+	// AMQP (RabbitMQ)
+	BrokerURL string
+	QueueName string
+
+	// GCP Pub/Sub. TopicName is used only by cmd/send. The client reads
+	// GOOGLE_APPLICATION_CREDENTIALS and PUBSUB_EMULATOR_HOST itself.
+	ProjectID        string
+	TopicName        string
+	SubscriptionName string
 }
 
 type MonitoringConfig struct {
@@ -35,17 +52,19 @@ type ServerConfig struct {
 	MonitoringCfg *MonitoringConfig
 }
 
-func loadEnvFile() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading .env file")
+func GetAppConfig() (*ServerConfig, error) {
+	loadDotEnv := false
+	if value, exists := os.LookupEnv("LOAD_DOTENV"); exists {
+		var err error
+		loadDotEnv, err = strconv.ParseBool(value)
+		if err != nil {
+			return nil, errors.New("LOAD_DOTENV must be a boolean")
+		}
 	}
-}
-
-func GetAppConfig() *ServerConfig {
-	loadDotEnv := env.GetBool("LOAD_DOTENV", true)
-
 	if loadDotEnv {
-		loadEnvFile()
+		if err := godotenv.Load(); err != nil {
+			return nil, errors.New("cannot read .env with LOAD_DOTENV enabled")
+		}
 	}
 
 	hostname, err := os.Hostname()
@@ -54,17 +73,65 @@ func GetAppConfig() *ServerConfig {
 	}
 
 	graderName := env.GetString("GRADER_NAME", hostname)
-	graderEnv := env.GetString("GRADER_ENV", "development")
-	graderWorkerCount := env.GetInt("GRADER_WORKER_COUNT", 20)
+	graderEnv := env.GetString("GRADER_ENV", "production")
+	if graderEnv != "production" && graderEnv != "development" {
+		return nil, errors.New("GRADER_ENV must be production or development")
+	}
+	graderWorkerCount := 3
+	if value, exists := os.LookupEnv("GRADER_WORKER_COUNT"); exists {
+		var err error
+		graderWorkerCount, err = strconv.Atoi(value)
+		if err != nil || graderWorkerCount <= 0 {
+			return nil, errors.New("GRADER_WORKER_COUNT must be a positive integer")
+		}
+	}
 
-	backendAPIToken := env.GetString("BACKEND_API_TOKEN", "token")
-	backendCallbackEndpoint := env.GetString("BACKEND_CALLBACK_ENDPOINT", "http://localhost:8080/v1/submissions/{submission_id}/programming/grade-callback")
+	backendAPIToken := env.GetString("BACKEND_API_TOKEN", "")
+	backendCallbackEndpoint := env.GetString("BACKEND_CALLBACK_ENDPOINT", "")
 
 	mqConfig := &MessageQueueConfig{
-		BrokerURL:        env.GetString("QUEUE_BROKER_URL", "amqp://guest:guest@localhost:5672/"),
-		ResultBackendURL: env.GetString("QUEUE_RESULT_URL", "amqp://guest:guest@localhost:5672/"),
-		QueueName:        env.GetString("QUEUE_NAME", "ceruvia_submissions"),
-		ResultsExpireIn:  env.GetInt("QUEUE_RESULT_TTL", 36000),
+		Broker:           env.GetString("QUEUE_BROKER", BrokerAMQP),
+		BrokerURL:        env.GetString("QUEUE_BROKER_URL", ""),
+		QueueName:        env.GetString("QUEUE_NAME", ""),
+		ProjectID:        env.GetString("GCP_PROJECT_ID", ""),
+		TopicName:        env.GetString("PUBSUB_TOPIC_NAME", ""),
+		SubscriptionName: env.GetString("PUBSUB_SUBSCRIPTION_NAME", ""),
+	}
+	type setting struct{ name, value string }
+	required := []setting{
+		{"BACKEND_API_TOKEN", backendAPIToken},
+		{"BACKEND_CALLBACK_ENDPOINT", backendCallbackEndpoint},
+	}
+	switch mqConfig.Broker {
+	case BrokerAMQP:
+		required = append(required, setting{"QUEUE_BROKER_URL", mqConfig.BrokerURL}, setting{"QUEUE_NAME", mqConfig.QueueName})
+	case BrokerPubSub:
+		required = append(required, setting{"GCP_PROJECT_ID", mqConfig.ProjectID},
+			setting{"PUBSUB_SUBSCRIPTION_NAME", mqConfig.SubscriptionName})
+	default:
+		return nil, errors.New("QUEUE_BROKER must be amqp or gcppubsub")
+	}
+
+	if graderEnv == "production" {
+		for _, s := range required {
+			if strings.TrimSpace(s.value) == "" {
+				return nil, fmt.Errorf("%s is required in production", s.name)
+			}
+		}
+	}
+	if backendCallbackEndpoint != "" {
+		callback, err := url.Parse(backendCallbackEndpoint)
+		if err != nil || callback.Hostname() == "" ||
+			(callback.Scheme != "http" && callback.Scheme != "https") ||
+			callback.User != nil || callback.Fragment != "" || strings.HasSuffix(callback.Host, ":") {
+			return nil, errors.New("BACKEND_CALLBACK_ENDPOINT must be an absolute http or https URL")
+		}
+		if port := callback.Port(); port != "" {
+			n, err := strconv.Atoi(port)
+			if err != nil || n < 1 || n > 65535 {
+				return nil, errors.New("BACKEND_CALLBACK_ENDPOINT has an invalid port")
+			}
+		}
 	}
 
 	monitoringConfig := &MonitoringConfig{
@@ -83,5 +150,5 @@ func GetAppConfig() *ServerConfig {
 		BackendCallbackEndpoint: backendCallbackEndpoint,
 		MQCfg:                   mqConfig,
 		MonitoringCfg:           monitoringConfig,
-	}
+	}, nil
 }

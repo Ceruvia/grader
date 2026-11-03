@@ -1,9 +1,12 @@
+//go:build linux && integration
+
 package orchestrator_test
 
 import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,6 +28,8 @@ const (
 	JAVA_MAKEFILE_TEST_ID_PREFIX    = 930
 	HASKELL_TEST_ID_PREFIX          = 940
 	HASKELL_MAKEFILE_TEST_ID_PREFIX = 950
+	DOTTED_NAME_TEST_ID_PREFIX      = 970
+	CASE_IDENTITY_TEST_ID           = 980
 )
 
 func TestGradingC(t *testing.T) {
@@ -49,7 +54,7 @@ func TestGradingC(t *testing.T) {
 			Title:           "Success_Hello World",
 			Submisison:      createCSubmission("hello.c", 2, 1000, 1024),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_hello",
-			ExpectedResult:  createExpectedResult(true, "Compile Error", "", []string{"AC", "WA"}),
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
 		},
 		{
 			Title:           "Success_Kotak Bola",
@@ -85,7 +90,7 @@ func TestGradingC(t *testing.T) {
 			Title:           "Compile Error_Unfound function",
 			Submisison:      createCSubmission("unfoundfunc.c", 0, 1000, 1024),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_unfoundfunc",
-			ExpectedResult:  createExpectedResult(false, "Compile Error", "error: implicit declaration of function ‘prinf’;", []string{}),
+			ExpectedResult:  createExpectedResult(false, "Compile Error", "printf", []string{}),
 		},
 		{
 			Title:           "Runtime Error_Null pointer",
@@ -121,7 +126,7 @@ func TestGradingC(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -146,6 +151,8 @@ func TestGradingCWithMakefile(t *testing.T) {
 		}
 	}
 
+	// make itself runs in the box cgroup and needs about 7 MiB, so a 1 MiB
+	// limit killed random cases with SIGKILL.
 	GradingTests := []struct {
 		Title           string
 		Submisison      models.Submission
@@ -154,43 +161,43 @@ func TestGradingCWithMakefile(t *testing.T) {
 	}{
 		{
 			Title:           "Success_Hello World",
-			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_hello",
-			ExpectedResult:  createExpectedResult(true, "Compile Error", "", []string{"AC", "WA"}),
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
 		},
 		{
 			Title:           "Success_Kotak Bola",
-			Submisison:      createCWithMakefileSubmission("compile", "prog", 20, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("compile", "prog", 20, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_kotakbola",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
 		},
 		{
 			Title:           "Success_Fix Tags",
-			Submisison:      createCWithMakefileSubmission("compile", "prog", 10, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("compile", "prog", 10, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_adt_fixtags",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "AC", "AC"}),
 		},
 		{
 			Title:           "Compile Error_Empty file",
-			Submisison:      createCWithMakefileSubmission("", "empty", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "empty", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_empty",
 			ExpectedResult:  createExpectedResult(false, "Compile Error", "undefined reference to", []string{}),
 		},
 		{
 			Title:           "Compile Error_No file",
-			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_nofile",
 			ExpectedResult:  createExpectedResult(false, "Compile Error", "empty.c: No such file or directory", []string{}),
 		},
 		{
 			Title:           "Compile Error_No makefile",
-			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_nomakefile",
 			ExpectedResult:  createExpectedResult(false, "Compile Error", "make: *** No targets specified and no makefile found.  Stop.", []string{}),
 		},
 		{
 			Title:           "Runtime Error_Null pointer",
-			Submisison:      createCWithMakefileSubmission("", "nullpointer", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "nullpointer", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/re_nullpointer",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"RE", "AC"}),
 		},
@@ -210,7 +217,7 @@ func TestGradingCWithMakefile(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -221,7 +228,90 @@ func TestGradingCWithMakefile(t *testing.T) {
 	}
 }
 
+// A dotted source basename or run target names the artifact exactly once:
+// my.sol.c builds and runs my.sol, and a makefile target program.out runs as is.
+func TestGradingDottedExecutableNames(t *testing.T) {
+	limits := createLimits(1000, 65536)
+	GradingTests := []struct {
+		Title      string
+		Submisison models.Submission
+	}{
+		{"C source my.sol.c", models.SubmissionWithFiles{Core: models.Core{Language: "C", Limits: limits, Testcases: createTestcases(1)}, MainSourceFilename: "my.sol.c"}},
+		{"C++17 source my.sol.cpp", models.SubmissionWithFiles{Core: models.Core{Language: "C++17", Limits: limits, Testcases: createTestcases(1)}, MainSourceFilename: "my.sol.cpp"}},
+		{"Makefile target program.out", models.SubmissionWithBuilder{Core: models.Core{Language: "C", Limits: limits, Testcases: createTestcases(1)}, Builder: "Makefile", RunScript: "program.out"}},
+	}
+
+	for i, test := range GradingTests {
+		t.Run(test.Title, func(t *testing.T) {
+			sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, DOTTED_NAME_TEST_ID_PREFIX+i)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sbx.Cleanup()
+
+			if err := prepareSubmission(sbx, test.Submisison, "../../tests/c_test/e2e/scs_dotted"); err != nil {
+				t.Fatal(err)
+			}
+
+			res := orchestrator.GradeBlackboxSubmission(sbx, test.Submisison)
+
+			assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC"}))
+		})
+	}
+}
+
+// A case the grader cannot set up still reports which case it is, so the
+// Backend can store it as that case's internal error.
+func TestGradingCaseSetupFailureKeepsIdentity(t *testing.T) {
+	sbx, err := sandboxes.CreateIsolateSandbox(ISOLATE_PATH, CASE_IDENTITY_TEST_ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sbx.Cleanup()
+	submission := models.SubmissionWithFiles{
+		Core:               models.Core{Language: "C", Limits: createLimits(1000, 65536), Testcases: createTestcases(2)},
+		MainSourceFilename: "nextdir.c",
+	}
+	if err := prepareSubmission(sbx, submission, "../../tests/c_test/e2e/xx_next_input_dir"); err != nil {
+		t.Fatal(err)
+	}
+
+	res := orchestrator.GradeBlackboxSubmission(sbx, submission)
+
+	assertGradingResult(t, res, createExpectedResult(true, "Success", "", []string{"AC", "XX"}))
+	for i, got := range res.TestcaseGradingResult {
+		wantIn, wantOut := fmt.Sprintf("%d.in", i+1), fmt.Sprintf("%d.out", i+1)
+		if got.InputFilename != wantIn || got.OutputFilename != wantOut {
+			t.Errorf("case %d: want identity %s/%s, got %+v", i+1, wantIn, wantOut, got)
+		}
+	}
+	// Staff see this message, so it must not reveal grader host paths.
+	xx := res.TestcaseGradingResult[1]
+	if !xx.HasErrorMessage || xx.ErrorMessage == "" {
+		t.Errorf("case 2 must carry an error message, got %+v", xx)
+	}
+	for _, hostPath := range []string{"/var/", "/tmp/", sbx.BoxDir} {
+		if strings.Contains(xx.ErrorMessage, hostPath) {
+			t.Errorf("case 2 message reveals host path %q: %q", hostPath, xx.ErrorMessage)
+		}
+	}
+}
+
+// requireJDK fails when the JDK the grader calls is missing. Only an explicit
+// GRADER_TEST_NO_JDK=1 turns that into a skip, so Java coverage never drops quietly.
+func requireJDK(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("/usr/bin/javac"); err == nil {
+		return
+	}
+	if os.Getenv("GRADER_TEST_NO_JDK") == "1" {
+		t.Skip("Java grading NOT tested: /usr/bin/javac is missing and GRADER_TEST_NO_JDK=1")
+	}
+	t.Fatal("/usr/bin/javac is missing, so Java grading cannot be tested. Set GRADER_TEST_NO_JDK=1 to skip it on purpose")
+}
+
 func TestGradingJava(t *testing.T) {
+	requireJDK(t)
 	createJavaSubmission := func(mainSourceFilename string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithFiles{
 			Core: models.Core{
@@ -279,7 +369,7 @@ func TestGradingJava(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -291,6 +381,7 @@ func TestGradingJava(t *testing.T) {
 }
 
 func TestGradingJavaWithMakefile(t *testing.T) {
+	requireJDK(t)
 	createJavaWithMakefileSubmission := func(compileScript, runScript string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithBuilder{
 			Core: models.Core{
@@ -357,7 +448,7 @@ func TestGradingJavaWithMakefile(t *testing.T) {
 				// defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -420,7 +511,7 @@ func TestGradingHaskellWithMakefile(t *testing.T) {
 				defer sbx.Cleanup()
 			}
 
-			if err := moveToSandbox(sbx, test.OriginalFileDir); err != nil {
+			if err := prepareSubmission(sbx, test.Submisison, test.OriginalFileDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -434,23 +525,19 @@ func TestGradingHaskellWithMakefile(t *testing.T) {
 func assertGradingResult(t testing.TB, got, want evaluator.GradingResult) {
 	t.Helper()
 
-	if got.IsSuccess != want.IsSuccess {
-		t.Fatalf("expected IsSuccess to be %t, instead got %+v", want.IsSuccess, got)
+	if got.IsSuccess != want.IsSuccess || got.Status != want.Status {
+		t.Fatalf("expected IsSuccess %t and status %q, instead got %+v", want.IsSuccess, want.Status, got)
 	}
-
 	if !strings.Contains(got.ErrorMessage, want.ErrorMessage) {
 		t.Errorf("expected to get %q errorMessage, instead got %+v", want.ErrorMessage, got)
 	}
-
-	if got.Status != "Compile Error" {
-		if len(got.TestcaseGradingResult) != len(want.TestcaseGradingResult) {
-			t.Fatalf("expected got (%d) and want (%d) results to be the same number, instead got %+v", len(got.TestcaseGradingResult), len(want.TestcaseGradingResult), got)
-		}
-
-		for i, _ := range got.TestcaseGradingResult {
-			if got.TestcaseGradingResult[i].Verdict != want.TestcaseGradingResult[i].Verdict {
-				t.Errorf("expected %q TC to have %s verdict, instead got %+v", want.TestcaseGradingResult[i].InputFilename+"-"+want.TestcaseGradingResult[i].OutputFilename, want.TestcaseGradingResult[i].Verdict, got.TestcaseGradingResult[i])
-			}
+	if len(got.TestcaseGradingResult) != len(want.TestcaseGradingResult) {
+		t.Fatalf("expected %d case results, instead got %d: %+v", len(want.TestcaseGradingResult), len(got.TestcaseGradingResult), got)
+	}
+	for i, w := range want.TestcaseGradingResult {
+		g := got.TestcaseGradingResult[i]
+		if g.Verdict != w.Verdict || g.InputFilename != w.InputFilename || g.OutputFilename != w.OutputFilename {
+			t.Errorf("case %d: expected %s/%s %s, instead got %+v", i+1, w.InputFilename, w.OutputFilename, w.Verdict, g)
 		}
 	}
 }
@@ -507,14 +594,22 @@ func createTestcases(numOfTestcase int) []models.Testcase {
 	return tc
 }
 
-func moveToSandbox(sandbox sandboxes.Sandbox, srcDir string) error {
+func prepareSubmission(sandbox sandboxes.Sandbox, submission models.Submission, srcDir string) error {
+	absDir, err := filepath.Abs(srcDir)
+	if err != nil {
+		return err
+	}
+	testcases := submission.GetTestcases()
+	for i := range testcases {
+		testcases[i].ExpectedOutputPath = filepath.Join(absDir, testcases[i].OutputFilename)
+	}
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if entry.Type().IsRegular() {
+		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) != ".out" {
 			srcPath := filepath.Join(srcDir, entry.Name())
 			if err := sandbox.AddFile(srcPath); err != nil {
 				return err

@@ -1,4 +1,5 @@
-GOLANG_VERSION := 1.24.2
+# Follows the go directive in go.mod, so the two cannot drift apart.
+GOLANG_VERSION := $(shell sed -n 's/^go //p' go.mod)
 GOPATH         := /go
 PATH           := /usr/local/go/bin:$(GOPATH)/bin:$(PATH)
 
@@ -21,7 +22,7 @@ install-isolate:
 	rm -rf /tmp/isolate
 
 build:
-	@echo "→ Building grader…"
+	@echo "→ Building grader with Go $(GOLANG_VERSION) (go.mod)…"
 	go mod download && \
 	go build -o grader cmd/server/main.go
 

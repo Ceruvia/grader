@@ -1,28 +1,33 @@
 package machinery
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-	"strings"
+	"sync"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
-	amqpbackend "github.com/RichardKnop/machinery/v2/backends/amqp"
+	nullbackend "github.com/RichardKnop/machinery/v2/backends/null"
 	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
+	brokersiface "github.com/RichardKnop/machinery/v2/brokers/iface"
 	"github.com/RichardKnop/machinery/v2/config"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	log "github.com/sirupsen/logrus"
 )
 
-func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
+// GradingTasks are the task names the Backend sends.
+var GradingTasks = map[string]interface{}{
+	"blackbox":                   ceruviaTasks.GradeBlackbox,
+	"blackbox_with_builder":      ceruviaTasks.GradeBlackboxWithBuilder,
+	"compile_check":              ceruviaTasks.CompileCheck,
+	"compile_check_with_builder": ceruviaTasks.CompileCheckWithBuilder,
+}
+
+// NewServer connects to the broker QUEUE_BROKER names and registers taskFuncs.
+func NewServer(cfg *ceruviaConfig.ServerConfig, taskFuncs map[string]interface{}) (*machinery.Server, error) {
 	cnf := &config.Config{
-		Broker:          cfg.MQCfg.BrokerURL,
-		DefaultQueue:    cfg.MQCfg.QueueName,
-		ResultBackend:   cfg.MQCfg.ResultBackendURL,
-		ResultsExpireIn: cfg.MQCfg.ResultsExpireIn,
+		Broker:       cfg.MQCfg.BrokerURL,
+		DefaultQueue: cfg.MQCfg.QueueName,
 		AMQP: &config.AMQPConfig{
 			Exchange:      "machinery_exchange",
 			ExchangeType:  "direct",
@@ -31,95 +36,49 @@ func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 		},
 	}
 
-	broker := amqpbroker.New(cnf)
-	backend := amqpbackend.New(cnf)
-	lock := eagerlock.New()
-	server := machinery.NewServer(cnf, broker, backend, lock)
-
-	tasksMap := map[string]interface{}{
-		"blackbox":              ceruviaTasks.GradeBlackbox,
-		"blackbox_with_builder": ceruviaTasks.GradeBlackboxWithBuilder,
+	var broker brokersiface.Broker
+	var unanswered *sync.Map
+	if cfg.MQCfg.Broker == ceruviaConfig.BrokerPubSub {
+		unanswered = new(sync.Map)
+		var err error
+		if broker, err = newPubSubBroker(cnf, cfg.MQCfg, unanswered); err != nil {
+			return nil, err
+		}
+	} else {
+		broker = amqpbroker.New(cnf)
 	}
+	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, unanswered: unanswered}
+	server := machinery.NewServer(cnf, broker, backend, eagerlock.New())
 
-	if err := server.RegisterTasks(tasksMap); err != nil {
+	if err := server.RegisterTasks(taskFuncs); err != nil {
 		log.WithError(err).Error("Failed to register tasks")
 		return nil, err
 	}
-
 	return server, nil
 }
 
+func newWorker(server *machinery.Server, cfg *ceruviaConfig.ServerConfig) *machinery.Worker {
+	worker := server.NewWorker("ceruvia_worker", cfg.WorkerCount)
+	worker.SetErrorHandler(func(err error) {
+		log.WithError(err).Error("Error occurred while processing task")
+	})
+	worker.SetPreTaskHandler(func(signature *tasks.Signature) {
+		fields := log.Fields{"task": signature.Name, "uuid": signature.UUID}
+		// A signature without args must not panic the worker before its callback.
+		if len(signature.Args) > 0 {
+			fields["submissionId"] = signature.Args[0].Value
+		}
+		log.WithFields(fields).Info("Starting task")
+	})
+	return worker
+}
+
 func LaunchWorker(cfg *ceruviaConfig.ServerConfig) error {
-	server, err := startServer(cfg)
+	server, err := NewServer(cfg, GradingTasks)
 	if err != nil {
 		log.WithError(err).Error("Failed to start Machinery server")
 		return err
 	}
-
-	worker := server.NewWorker("ceruvia_worker", cfg.WorkerCount)
-
-	// Optional: log any task-specific errors
-	errorHandler := func(err error) {
-		log.WithError(err).Error("Error occurred while processing task")
-	}
-
-	// Before task execution
-	preTaskHandler := func(signature *tasks.Signature) {
-		log.WithFields(log.Fields{
-			"task":         signature.Name,
-			"uuid":         signature.UUID,
-			"submissionId": signature.Args[0].Value,
-		}).Info("Starting task")
-	}
-
-	// After task execution
-	postTaskHandler := func(signature *tasks.Signature) {
-		submissionId := signature.Args[0].Value.(string)
-
-		// Send taskId to BE's callback endpoint
-		callbackUrl := strings.Replace(cfg.BackendCallbackEndpoint, "{submission_id}", submissionId, -1)
-		callbackToken := cfg.BackendAPIToken
-
-		payload, err := json.Marshal(struct {
-			TaskId string `json:"task_id"`
-		}{
-			TaskId: signature.UUID,
-		})
-
-		r, err := http.NewRequest("POST", callbackUrl, bytes.NewBuffer(payload))
-		if err != nil {
-			log.WithFields(log.Fields{
-				"task":         signature.Name,
-				"uuid":         signature.UUID,
-				"submissionId": signature.Args[0].Value,
-			}).Error("Error while creating callback request: ", err)
-		}
-		r.Header.Add("Content-Type", "application/json")
-		r.Header.Add("X-API-Key", callbackToken)
-
-		client := &http.Client{}
-		res, err := client.Do(r)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"task":         signature.Name,
-				"uuid":         signature.UUID,
-				"submissionId": signature.Args[0].Value,
-			}).Error("Error while sending callback request: ", err)
-		}
-
-		defer res.Body.Close()
-
-		log.WithFields(log.Fields{
-			"task":         signature.Name,
-			"uuid":         signature.UUID,
-			"submissionId": signature.Args[0].Value,
-		}).Info("Finished task")
-	}
-
-	worker.SetPostTaskHandler(postTaskHandler)
-	worker.SetErrorHandler(errorHandler)
-	worker.SetPreTaskHandler(preTaskHandler)
-
-	log.WithField("worker_count", cfg.WorkerCount).Info("Launching worker...")
-	return worker.Launch()
+	log.WithFields(log.Fields{"worker_count": cfg.WorkerCount, "broker": cfg.MQCfg.Broker}).Info("Launching worker...")
+	return newWorker(server, cfg).Launch()
 }

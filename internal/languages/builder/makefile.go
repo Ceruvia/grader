@@ -15,9 +15,18 @@ func (b MakefileBuilder) GetAllowedExtention() []string {
 	return []string{}
 }
 
-func (b MakefileBuilder) GetCompilationCommand(compileCommand string, _ ...string) command.CommandBuilder {
-	return *command.GetCommandBuilder("/usr/bin/make").
-		AddArgs(compileCommand)
+// GetCompilationCommand reads makefiles[0] with -f when given, so no other
+// makefile in the box can take precedence. -B makes the teacher recipe run even
+// when a student file with a future mtime already has a target name.
+func (b MakefileBuilder) GetCompilationCommand(compileCommand string, makefiles ...string) command.CommandBuilder {
+	cmd := command.GetCommandBuilder("/usr/bin/make")
+	if len(makefiles) > 0 && makefiles[0] != "" {
+		cmd.AddArgs("-B", "-f", makefiles[0])
+	}
+	if compileCommand != "" {
+		cmd.AddArgs(compileCommand)
+	}
+	return *cmd
 }
 
 func (b MakefileBuilder) GetExecutionCommand(binaryFilename string) command.CommandBuilder {

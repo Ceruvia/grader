@@ -38,10 +38,10 @@ func (l JavaLanguage) GetCompilationCommand(mainSourceFilename string, sourceFil
 		AddArgs(cmdStr)
 }
 
-func (l JavaLanguage) GetExecutionCommand(mainSourceFilename string) command.CommandBuilder {
+func (l JavaLanguage) GetExecutionCommand(binaryFilename string) command.CommandBuilder {
 	return *command.GetCommandBuilder("/usr/bin/java").
 		AddArgs("-jar").
-		AddArgs(l.GetExecutableFilename(mainSourceFilename))
+		AddArgs(binaryFilename)
 }
 
 func (l JavaLanguage) GetExecutableFilename(sourceFilename string) string {

@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Actions are pinned by commit SHA. This keeps the pins and their version comments current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Minor and patch bumps arrive as one PR per week, majors stay separate.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gomod-minor-patch:
+        update-types: [minor, patch]
+
+  # Dockerfile base images: digest bumps for the pinned golang toolchain.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

@@ -42,7 +42,7 @@ func TestGetCompilationCommand(t *testing.T) {
 }
 
 func TestGetExecutionCommand(t *testing.T) {
-	got := JavaGradingLanguage.GetExecutionCommand("Main.java")
+	got := JavaGradingLanguage.GetExecutionCommand("Main.jar")
 	want := "/usr/bin/java -jar Main.jar"
 	tester.AssertDeep(t, got.BuildFullCommand(), want)
 }

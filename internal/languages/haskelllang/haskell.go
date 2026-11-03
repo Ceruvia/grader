@@ -21,8 +21,8 @@ func (l HaskellLanguage) GetCompilationCommand(mainSourceFilename string, source
 		AddArgs(l.GetExecutableFilename(mainSourceFilename))
 }
 
-func (l HaskellLanguage) GetExecutionCommand(mainSourceFilename string) command.CommandBuilder {
-	return *command.GetCommandBuilder("./" + l.GetExecutableFilename(mainSourceFilename))
+func (l HaskellLanguage) GetExecutionCommand(binaryFilename string) command.CommandBuilder {
+	return *command.GetCommandBuilder("./" + binaryFilename)
 }
 
 func (l HaskellLanguage) GetExecutableFilename(sourceFilename string) string {
