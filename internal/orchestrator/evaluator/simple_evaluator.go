@@ -43,7 +43,7 @@ func (se SimpleEvaluator) Evaluate(sbx sandboxes.Sandbox, execResult sandboxes.S
 		return runError(models.VerdictRE, messageLimit, "Failed to read actual output file: %q", err)
 	}
 	defer actual.Close()
-	expected, err := os.Open(expectedOutputPath)
+	expected, err := os.Open(expectedOutputPath) //nolint:gosec // a teacher .out in the host-only TaskDir, its name checked as a base name in prepareGraderFiles.
 	if err != nil {
 		return runError(models.VerdictXX, messageLimit, "Failed to read expected output file: %q", err)
 	}

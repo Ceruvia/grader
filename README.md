@@ -17,9 +17,10 @@ in the Backend repository. This repository holds only the grader code, its image
 
 ## What it does
 
-1. The backend publishes a [Machinery](https://github.com/RichardKnop/machinery) task to RabbitMQ.
-   The grader consumes it from the queue `QUEUE_NAME` (exchange `machinery_exchange`, type `direct`,
-   binding key `machinery_task`).
+1. The backend publishes a [Machinery](https://github.com/RichardKnop/machinery) task. `QUEUE_BROKER`
+   picks the broker. With `amqp` (default) the grader consumes RabbitMQ queue `QUEUE_NAME` (exchange
+   `machinery_exchange`, type `direct`, binding key `machinery_task`). With `gcppubsub` it pulls the
+   Pub/Sub subscription `PUBSUB_SUBSCRIPTION_NAME`, where each message body is the task signature JSON.
 2. It takes a free [isolate](https://github.com/ioi/isolate) box from its pool. The pool has
    `GRADER_WORKER_COUNT` boxes, so that many tasks run in parallel.
 3. It downloads the question archive (`grader.zip`: test cases, teacher files, optional makefile) and
@@ -32,9 +33,10 @@ in the Backend repository. This repository holds only the grader code, its image
    cached objects cannot bypass source compilation. Teacher-provided build products are preserved.
 5. It compiles and runs the code in isolate v2.1 with cgroup limits, then compares the output with the
    expected `.out` file.
-6. It stores the result in the Machinery result backend (`QUEUE_RESULT_URL`) and calls the backend
-   callback `BACKEND_CALLBACK_ENDPOINT` with `{"task_id": "<machinery task uuid>"}` and the header
-   `X-API-Key: <BACKEND_API_TOKEN>`. The backend then reads the result from the result backend.
+6. It POSTs the final state to the backend callback `BACKEND_CALLBACK_ENDPOINT` with the header
+   `X-API-Key: <BACKEND_API_TOKEN>`. Nothing is stored in the broker. Body:
+   `{"task_id": "<task uuid>", "kind": "grade" or "compile_check", "state": "SUCCESS" or "FAILURE", "result": "<task result JSON as a string>", "error": "<FAILURE only>"}`.
+   `result` is absent on `FAILURE`.
 
 Verdicts: `AC` (Accepted), `WA` (Wrong Answer), `CE` (Compilation Error), `RE` (Runtime Error),
 `TLE` (Time Limit Exceeded), `XX` (Internal Error).
@@ -47,11 +49,11 @@ The worker registers four task names (`internal/machinery/setup.go`). Arguments 
 |---|---|---|
 | `blackbox` | submission id, grader zip URL, submission zip URL, input files, output files, time limit (ms), memory limit (KB), language, main source file | yes |
 | `blackbox_with_builder` | submission id, grader zip URL, submission zip URL, input files, output files, time limit (ms), memory limit (KB), language, builder, compile script, run script | yes |
-| `compile_check` | submission id, grader zip URL, submission zip URL, language, main source file, deadline (Unix ms) | no |
-| `compile_check_with_builder` | submission id, grader zip URL, submission zip URL, language, builder, compile script, deadline (Unix ms) | no |
+| `compile_check` | submission id, grader zip URL, submission zip URL, language, main source file, deadline (Unix ms) | yes, `kind` `compile_check` |
+| `compile_check_with_builder` | submission id, grader zip URL, submission zip URL, language, builder, compile script, deadline (Unix ms) | yes, `kind` `compile_check` |
 
 Input and output files come in pairs with the same base name (`1.in` and `1.out`).
-Compile checks return `compiled`, `compile_error` or `internal_error` through the result backend only.
+Compile checks return `compiled`, `compile_error` or `internal_error` in the callback `result`.
 A compile check whose deadline has passed is skipped and returns `internal_error`.
 
 When the grader itself fails (download, unzip, sandbox), the task returns an error. Machinery marks it
@@ -61,7 +63,21 @@ When the grader itself fails (download, unzip, sandbox), the task returns an err
 
 `internal/machinery/callback.go`: each attempt has a 10 s timeout. There are up to 4 attempts, with
 waits of 2, 4 and 8 s. It retries on network errors, 5xx and 429, and stops on any other non-2xx
-status. If every attempt fails, the submission stays pending and the backend sweeper marks it stuck.
+status, which counts as the backend's final answer.
+
+With `amqp` the message is acked after the callback either way. If every attempt fails, the submission
+stays pending and the backend sweeper marks it stuck.
+
+With `gcppubsub` delivery is at least once:
+
+- The message is acked only after a 2xx or a final 4xx. If every attempt fails, it is nacked, so
+  the job is graded again (by any grader). The backend ignores a second result for a final row.
+- A grader holds at most `GRADER_WORKER_COUNT` unacked messages, so graders share the load. Each
+  worker slot pulls one message only when it is free. A failed ack or nack is retried every second,
+  and the slot pulls nothing new until it lands or the message's lease has lapsed.
+- The grader keeps a 30 s lease on a running job and extends it every 10 s, for up to 1 hour.
+- On SIGTERM the grader stops pulling and waits 5 s for running jobs. Jobs still running then are
+  nacked so another grader takes them at once. A killed grader's jobs come back within 30 s.
 
 ### Limits
 
@@ -106,11 +122,15 @@ work in the image today (see known issues).
 | `LOAD_DOTENV` | no | `false` | `true` loads `.env` from the working directory and fails startup if it cannot be read. Must be a boolean. |
 | `GRADER_NAME` | no | the hostname | Label for logs and metrics. |
 | `GRADER_ENV` | no | `production` | `production` or `development`. Any other value fails startup. `development` turns on debug logs and skips the required checks below. |
-| `GRADER_WORKER_COUNT` | no | `3` | Positive integer. Boxes graded in parallel and the AMQP prefetch count. Keep it at or below the CPU cores the container gets. |
-| `QUEUE_BROKER_URL` | yes in production | empty | AMQP URL of RabbitMQ. |
-| `QUEUE_RESULT_URL` | yes in production | empty | AMQP URL of the Machinery result backend. |
-| `QUEUE_NAME` | yes in production | empty | Must equal `QUEUE_NAME` in the backend, or tasks are never picked up. |
-| `QUEUE_RESULT_TTL` | no | `36000` | Seconds a result is kept. A value that is not an integer falls back to the default. |
+| `GRADER_WORKER_COUNT` | no | `3` | Positive integer. Boxes graded in parallel, the AMQP prefetch count and the Pub/Sub cap on unacked messages. Keep it at or below the CPU cores the container gets. |
+| `QUEUE_BROKER` | no | `amqp` | `amqp` (RabbitMQ) or `gcppubsub` (GCP Pub/Sub). Any other value fails startup. |
+| `QUEUE_BROKER_URL` | with `amqp`, in production | empty | AMQP URL of RabbitMQ. |
+| `QUEUE_NAME` | with `amqp`, in production | empty | Must equal `QUEUE_NAME` in the backend, or tasks are never picked up. |
+| `GCP_PROJECT_ID` | with `gcppubsub`, in production | empty | GCP project of the topic and subscription. |
+| `PUBSUB_SUBSCRIPTION_NAME` | with `gcppubsub`, in production | empty | Pull subscription on the backend's topic. Every grader uses the same one. |
+| `PUBSUB_TOPIC_NAME` | no | empty | Read only by `cmd/send`. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | no | empty | Read by the Google client. Path of a mounted service account key file. Without it the client uses the VM's default credentials. |
+| `PUBSUB_EMULATOR_HOST` | no | empty | Read by the Google client. Points it at a local emulator. Tests and local stacks only. |
 | `BACKEND_API_TOKEN` | yes in production | empty | Secret. Must equal `APP_API_KEY` in the backend. |
 | `BACKEND_CALLBACK_ENDPOINT` | yes in production | empty | Absolute `http` or `https` URL with a `{submission_id}` placeholder. Checked whenever it is set. Example: `http://ingress/v1/submissions/{submission_id}/programming/grade-callback` |
 | `MONITORING_LOKI_URL` | no | empty | When set, logs are also sent to Loki. |
@@ -122,8 +142,9 @@ work in the image today (see known issues).
 `CERUVIA_POOL_RESTART_HELPER` is read only by `internal/tasks/pool_lifecycle_linux_test.go`. Never set it.
 
 In the container, `dump-env.service` copies the container environment to `/run/grader/env` for the
-grader unit. Only names that start with `GRADER_`, `QUEUE_`, `BACKEND_`, `MONITORING_` or
-`LOAD_DOTENV` pass through. A variable with any other name never reaches the grader.
+grader unit. Only `LOAD_DOTENV`, `GCP_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` and names that
+start with `GRADER_`, `QUEUE_`, `BACKEND_`, `MONITORING_` or `PUBSUB_` pass through. A variable with
+any other name never reaches the grader.
 
 The deployed values live in env files on the VM: `grader.env` for production
 and `grader.staging.env` for staging (`Backend/DEPLOY.md` sections 1.5 and 7.1).
@@ -187,19 +208,19 @@ docker compose -f docker-compose.e2e.yaml up -d --build --wait
 
 ## Tests
 
-There are two kinds of tests. Neither uses an `integration` build tag.
+There are two kinds of tests. Isolate tests carry the `linux && integration` build tag, so a plain
+`go test` skips them.
 
 **Unit tests** need no isolate. They run on any machine with Go 1.26 or later:
 
 ```bash
 go build ./... && go vet ./...
-go test ./internal/helper/... ./internal/languages/... ./internal/machinery/... ./internal/models/... ./internal/monitoring/... ./internal/orchestrator/evaluator/...
+go test ./...
 ```
 
-**Isolate tests** run real compilers in real boxes. They live in `internal/orchestrator`,
-`internal/orchestrator/compilers`, `internal/orchestrator/engines`, `internal/sandboxes` and
-`internal/tasks`, and use the fixtures under `tests/`. They need the `test` image, started the way CI
-starts it (`.github/workflows/deploy.yml`, job `test`):
+**Isolate tests** run real compilers in real boxes. Every file that calls isolate has the build tag
+`linux && integration`, and they use the fixtures under `tests/`. They need the `test` image, started
+the way CI starts it (`.github/workflows/deploy.yml`, job `test`):
 
 ```bash
 docker build --target test -t ceruvia/grader:test .
@@ -216,11 +237,21 @@ docker exec grader-test systemctl is-active --quiet isolate.service
 Then run the whole suite and remove the container:
 
 ```bash
-docker exec -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
+docker exec -e GRADER_TEST_NO_JDK=1 -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
 docker rm -f grader-test
 ```
 
-Running `go test ./...` outside the image fails in the five isolate packages. That is expected.
+`GRADER_TEST_NO_JDK=1` skips the Java acceptance tests on purpose because the image has no JDK (see
+Known issues). Without `-tags integration` the isolate tests do not compile in, so a green plain
+`go test ./...` says nothing about grading.
+
+The Pub/Sub tests (`internal/machinery/pubsub_integration_test.go`) start the emulator image
+`gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` with testcontainers, so they need Docker
+on the host and skip unless `GRADER_TEST_PUBSUB=1`. CI does not set it. Run them on the host:
+
+```bash
+GRADER_TEST_PUBSUB=1 go test -tags integration -run TestPubSub ./internal/machinery/
+```
 
 ## Bare-metal Makefile
 
@@ -283,15 +314,7 @@ Dependabot (`.github/dependabot.yml`) updates the pinned GitHub Actions weekly.
   Haskell rule (`internal/orchestrator/engines/engine_blackbox.go`). Measure where the memory goes
   (GHC runtime, compile or run) and decide the limit rule before any Haskell exam.
 - **Java has no JDK in the image.** `Java` is in the language registry, but the `Dockerfile` installs
-  no JDK. The Java acceptance tests skip with "no JDK in grader image". Do not offer Java questions
-  until the image has a JDK.
-- **Isolate tests have no build tag.** 23 test files need a real isolate but have no `integration`
-  build tag. So `go test ./...` on a normal machine fails instead of skipping them, and you have to
-  list the unit packages by hand (see Tests).
-- **The acceptance helper treats Compile Error loosely.** `assertGradingResult` in
-  `internal/orchestrator/acceptance_test.go` never compares the status of a run expected to succeed,
-  and it skips all verdict checks when the actual status is `Compile Error`. The `Success_Hello World`
-  cases in `TestGradingC` and `TestGradingCWithMakefile` list `Compile Error` as their expected status
-  and still pass. Only the `IsSuccess` flag guards these cases, so a wrong status in a test table goes
-  unnoticed.
+  no JDK. A Java submission gets `Compile Error` with `/usr/bin/javac: No such file or directory`.
+  The Java acceptance tests fail without `/usr/bin/javac` and skip only when `GRADER_TEST_NO_JDK=1`
+  is set. Do not offer Java questions until the image has a JDK.
 - **Bare-metal Makefile is stale.** See the Makefile section above.

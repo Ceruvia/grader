@@ -74,7 +74,7 @@ func createFresh(path string) error {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0666)
+	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0666) //nolint:gosec // isolate opens -o and -r as the box uid, which must write them. O_EXCL|O_NOFOLLOW.
 	if err != nil {
 		return err
 	}

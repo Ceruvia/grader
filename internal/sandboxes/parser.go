@@ -12,7 +12,7 @@ import (
 )
 
 func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
-	file, err := os.Open(metaFilePath)
+	file, err := os.Open(metaFilePath) //nolint:gosec // the meta file in the host-only MetaDir, named by the grader.
 	if err != nil {
 		return SandboxExecutionResult{}, err
 	}

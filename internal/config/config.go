@@ -12,11 +12,24 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Brokers selectable with QUEUE_BROKER.
+const (
+	BrokerAMQP   = "amqp"
+	BrokerPubSub = "gcppubsub"
+)
+
 type MessageQueueConfig struct {
-	BrokerURL        string
-	ResultBackendURL string
-	QueueName        string
-	ResultsExpireIn  int
+	Broker string
+
+	// AMQP (RabbitMQ)
+	BrokerURL string
+	QueueName string
+
+	// GCP Pub/Sub. TopicName is used only by cmd/send. The client reads
+	// GOOGLE_APPLICATION_CREDENTIALS and PUBSUB_EMULATOR_HOST itself.
+	ProjectID        string
+	TopicName        string
+	SubscriptionName string
 }
 
 type MonitoringConfig struct {
@@ -77,22 +90,32 @@ func GetAppConfig() (*ServerConfig, error) {
 	backendCallbackEndpoint := env.GetString("BACKEND_CALLBACK_ENDPOINT", "")
 
 	mqConfig := &MessageQueueConfig{
+		Broker:           env.GetString("QUEUE_BROKER", BrokerAMQP),
 		BrokerURL:        env.GetString("QUEUE_BROKER_URL", ""),
-		ResultBackendURL: env.GetString("QUEUE_RESULT_URL", ""),
 		QueueName:        env.GetString("QUEUE_NAME", ""),
-		ResultsExpireIn:  env.GetInt("QUEUE_RESULT_TTL", 36000),
+		ProjectID:        env.GetString("GCP_PROJECT_ID", ""),
+		TopicName:        env.GetString("PUBSUB_TOPIC_NAME", ""),
+		SubscriptionName: env.GetString("PUBSUB_SUBSCRIPTION_NAME", ""),
+	}
+	type setting struct{ name, value string }
+	required := []setting{
+		{"BACKEND_API_TOKEN", backendAPIToken},
+		{"BACKEND_CALLBACK_ENDPOINT", backendCallbackEndpoint},
+	}
+	switch mqConfig.Broker {
+	case BrokerAMQP:
+		required = append(required, setting{"QUEUE_BROKER_URL", mqConfig.BrokerURL}, setting{"QUEUE_NAME", mqConfig.QueueName})
+	case BrokerPubSub:
+		required = append(required, setting{"GCP_PROJECT_ID", mqConfig.ProjectID},
+			setting{"PUBSUB_SUBSCRIPTION_NAME", mqConfig.SubscriptionName})
+	default:
+		return nil, errors.New("QUEUE_BROKER must be amqp or gcppubsub")
 	}
 
 	if graderEnv == "production" {
-		for _, setting := range []struct{ name, value string }{
-			{"BACKEND_API_TOKEN", backendAPIToken},
-			{"BACKEND_CALLBACK_ENDPOINT", backendCallbackEndpoint},
-			{"QUEUE_BROKER_URL", mqConfig.BrokerURL},
-			{"QUEUE_RESULT_URL", mqConfig.ResultBackendURL},
-			{"QUEUE_NAME", mqConfig.QueueName},
-		} {
-			if strings.TrimSpace(setting.value) == "" {
-				return nil, fmt.Errorf("%s is required in production", setting.name)
+		for _, s := range required {
+			if strings.TrimSpace(s.value) == "" {
+				return nil, fmt.Errorf("%s is required in production", s.name)
 			}
 		}
 	}

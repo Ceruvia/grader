@@ -69,8 +69,13 @@ COPY deployment/docker-init.sh /usr/local/bin/docker-init
 VOLUME [ "/sys/fs/cgroup" ]
 CMD ["/usr/local/bin/docker-init"]
 
+# ---------- Go toolchain ----------
+# One pinned image for the build and the test stage. Keep it on the latest 1.26 patch: govulncheck fails
+# on stdlib advisories, and Dependabot (docker) bumps the digest.
+FROM golang:1.26@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c AS gotoolchain
+
 # ---------- build ----------
-FROM golang:1.26 AS build
+FROM gotoolchain AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -85,7 +90,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # ---------- test ----------
 # Test image: `docker build --target test`. Source lives in /src.
 FROM base AS test
-COPY --from=golang:1.26 /usr/local/go /usr/local/go
+COPY --from=gotoolchain /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:$PATH
 WORKDIR /src
 COPY . /src

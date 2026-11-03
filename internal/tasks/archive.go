@@ -17,7 +17,7 @@ const (
 )
 
 func extractTeacherArchive(ctx context.Context, archivePath, destination string) error {
-	file, err := os.Open(archivePath)
+	file, err := os.Open(archivePath) //nolint:gosec // archivePath is grader.zip in the host-only TaskDir, built from the box id.
 	if err != nil {
 		return err
 	}
@@ -57,14 +57,15 @@ func extractTeacherArchive(ctx context.Context, archivePath, destination string)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		target := filepath.Join(destination, entry.Name)
+		target := filepath.Join(destination, entry.Name) //nolint:gosec // every name passed filepath.IsLocal above, and only regular files and dirs extract.
 		if entry.Mode().IsDir() {
-			if err := os.MkdirAll(target, 0755); err != nil {
+			if err := os.MkdirAll(target, 0700); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+		// 0700: only the grader process reads these. Files reach the box through CopyFile.
+		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
 			return err
 		}
 		if err := extractTeacherEntry(entry, target); err != nil {
@@ -72,7 +73,7 @@ func extractTeacherArchive(ctx context.Context, archivePath, destination string)
 		}
 	}
 	// An empty archive still has a valid, empty extraction directory.
-	return os.MkdirAll(destination, 0755)
+	return os.MkdirAll(destination, 0700)
 }
 
 func extractTeacherEntry(entry *zip.File, target string) error {
@@ -80,7 +81,7 @@ func extractTeacherEntry(entry *zip.File, target string) error {
 	if err != nil {
 		return err
 	}
-	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, entry.Mode().Perm())
+	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, entry.Mode().Perm()) //nolint:gosec // target is a validated local name under destination, O_EXCL.
 	if err != nil {
 		_ = source.Close()
 		return err

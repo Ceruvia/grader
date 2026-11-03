@@ -1,3 +1,5 @@
+//go:build linux && integration
+
 package sandboxes_test
 
 import (

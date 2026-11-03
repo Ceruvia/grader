@@ -1,3 +1,5 @@
+//go:build linux && integration
+
 package tasks
 
 import (
