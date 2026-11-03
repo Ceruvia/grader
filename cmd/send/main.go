@@ -1,3 +1,5 @@
+// Command send publishes one sample grading task through the broker QUEUE_BROKER
+// names. The result arrives at BACKEND_CALLBACK_ENDPOINT, not here.
 package main
 
 import (
@@ -5,13 +7,8 @@ import (
 	"log"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
-	"github.com/RichardKnop/machinery/v2"
-	"github.com/RichardKnop/machinery/v2/config"
+	"github.com/Ceruvia/grader/internal/machinery"
 	"github.com/RichardKnop/machinery/v2/tasks"
-
-	amqpbackend "github.com/RichardKnop/machinery/v2/backends/amqp"
-	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
-	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
 )
 
 func main() {
@@ -20,23 +17,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cnf := &config.Config{
-		Broker:          cfg.MQCfg.BrokerURL,
-		DefaultQueue:    cfg.MQCfg.QueueName,
-		ResultBackend:   cfg.MQCfg.ResultBackendURL,
-		ResultsExpireIn: cfg.MQCfg.ResultsExpireIn,
-		AMQP: &config.AMQPConfig{
-			Exchange:      "machinery_exchange",
-			ExchangeType:  "direct",
-			BindingKey:    "machinery_task",
-			PrefetchCount: 3,
-		},
+	server, err := machinery.NewServer(cfg, nil)
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	broker := amqpbroker.New(cnf)
-	backend := amqpbackend.New(cnf)
-	lock := eagerlock.New()
-	server := machinery.NewServer(cnf, broker, backend, lock)
 
 	signature := &tasks.Signature{
 		Name: "blackbox",
@@ -80,10 +64,8 @@ func main() {
 		},
 	}
 
-	asyncResult, err := server.SendTask(signature)
-	if err != nil {
-		panic(err)
+	if _, err := server.SendTask(signature); err != nil {
+		log.Fatal(err)
 	}
-
-	fmt.Println(asyncResult.Get(10))
+	fmt.Println("sent", signature.UUID)
 }

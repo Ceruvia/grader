@@ -3,18 +3,22 @@ package machinery
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
 
-// callbackClient bounds every callback attempt. The backend waits up to 8 s for the
-// machinery result, so 10 s leaves room without hanging a worker.
+// callbackClient bounds every callback attempt.
 var callbackClient = &http.Client{Timeout: 10 * time.Second}
 
 // callbackBackoff is the wait before each retry, so a callback makes up to 4 attempts.
 var callbackBackoff = []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second}
+
+// errCallbackRejected marks a final non-2xx answer (4xx other than 429). Retrying
+// or redelivering the job cannot change it.
+var errCallbackRejected = errors.New("callback rejected")
 
 // postCallback POSTs body to url. It retries on transport errors, 5xx and 429,
 // stops on any other non-2xx status, and stops when ctx ends.
@@ -66,6 +70,6 @@ func sendCallback(ctx context.Context, client *http.Client, url, token string, b
 	case res.StatusCode >= 500 || res.StatusCode == http.StatusTooManyRequests:
 		return true, fmt.Errorf("callback status %d", res.StatusCode)
 	default:
-		return false, fmt.Errorf("callback status %d", res.StatusCode)
+		return false, fmt.Errorf("%w: status %d", errCallbackRejected, res.StatusCode)
 	}
 }

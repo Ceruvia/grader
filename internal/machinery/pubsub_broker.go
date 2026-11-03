@@ -1,0 +1,231 @@
+package machinery
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"cloud.google.com/go/pubsub/v2"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
+	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
+	"github.com/RichardKnop/machinery/v2/brokers/iface"
+	"github.com/RichardKnop/machinery/v2/common"
+	"github.com/RichardKnop/machinery/v2/config"
+	"github.com/RichardKnop/machinery/v2/tasks"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+const (
+	// lease is the ack deadline a running job keeps. A grader that dies stops
+	// extending it, so its jobs reach another grader within lease.
+	lease       = 30 * time.Second
+	extendEvery = lease / 3
+	// maxJobDuration ends lease extension. A job still running after it is
+	// redelivered to another grader.
+	maxJobDuration = time.Hour
+	rpcTimeout     = 10 * time.Second
+)
+
+// shutdownGrace is how long a stopping grader waits for running jobs before it
+// releases their messages for redelivery. It stays below Docker's default
+// 10 s stop timeout so the release happens before the container is killed.
+var shutdownGrace = 5 * time.Second
+
+// pubsubBroker consumes Machinery signatures from a Pub/Sub subscription.
+// Machinery's own gcppubsub broker cannot cap outstanding messages and acks
+// after a Nack. Streaming pull caps only on the client and the server may send
+// more, which a busy grader would then hold while others idle. So each worker
+// slot pulls one message only when it is free. A message is acked once the
+// Backend gave its final answer to the callback, and nacked otherwise.
+type pubsubBroker struct {
+	common.Broker
+	client       *pubsub.Client
+	subscription string
+	topic        string
+	unanswered   *sync.Map
+	stopped      chan struct{}
+	release      chan struct{}
+}
+
+func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, unanswered *sync.Map) (*pubsubBroker, error) {
+	client, err := pubsub.NewClient(context.Background(), mq.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("create Pub/Sub client: %w", err)
+	}
+	return &pubsubBroker{
+		Broker:       common.NewBroker(cnf),
+		client:       client,
+		subscription: fmt.Sprintf("projects/%s/subscriptions/%s", mq.ProjectID, mq.SubscriptionName),
+		topic:        mq.TopicName,
+		unanswered:   unanswered,
+		stopped:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}, nil
+}
+
+// StartConsuming runs concurrency worker slots until StopConsuming, or until a
+// pull fails after the client's own retries. Machinery then calls it again.
+func (b *pubsubBroker) StartConsuming(consumerTag string, concurrency int, p iface.TaskProcessor) (bool, error) {
+	b.Broker.StartConsuming(consumerTag, concurrency, p)
+
+	ctx, stopPulling := context.WithCancel(context.Background())
+	defer stopPulling()
+	go func() {
+		select {
+		case <-b.GetStopChan():
+			stopPulling()
+		case <-ctx.Done():
+		}
+	}()
+
+	var wg sync.WaitGroup
+	var once sync.Once
+	var pullErr error
+	for range concurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := b.runSlot(ctx, p); err != nil {
+				once.Do(func() { pullErr = err })
+				stopPulling()
+			}
+		}()
+	}
+	wg.Wait()
+
+	if pullErr != nil && b.GetRetry() {
+		b.GetRetryFunc()(b.GetRetryStopChan())
+	}
+	if b.GetRetry() {
+		return true, fmt.Errorf("pull from %s: %w", b.subscription, pullErr)
+	}
+	close(b.stopped)
+	return false, nil
+}
+
+// runSlot pulls and runs one job at a time until ctx ends or a pull fails.
+func (b *pubsubBroker) runSlot(ctx context.Context, p iface.TaskProcessor) error {
+	for {
+		res, err := b.client.SubscriptionAdminClient.Pull(ctx, &pubsubpb.PullRequest{
+			Subscription: b.subscription,
+			MaxMessages:  1,
+		})
+		switch {
+		case ctx.Err() != nil:
+			return nil
+		case status.Code(err) == codes.DeadlineExceeded:
+			continue // nothing arrived within the long poll
+		case err != nil:
+			return err
+		}
+		for _, m := range res.ReceivedMessages {
+			b.handle(m, p)
+		}
+	}
+}
+
+// handle runs one job while keeping its lease, then acks or nacks it.
+func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor) {
+	fields := log.Fields{"message_id": m.Message.MessageId}
+	started := time.Now()
+	// The subscription's own deadline may be long, so a crash would hide the job for that long.
+	b.setDeadline(m.AckId, lease)
+
+	answered := make(chan bool, 1)
+	go func() { answered <- b.consumeOne(m.Message, p) }()
+	ticker := time.NewTicker(extendEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case ok := <-answered:
+			if !ok {
+				b.setDeadline(m.AckId, 0)
+				return
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+			defer cancel()
+			if err := b.client.SubscriptionAdminClient.Acknowledge(ctx, &pubsubpb.AcknowledgeRequest{
+				Subscription: b.subscription, AckIds: []string{m.AckId},
+			}); err != nil {
+				log.WithFields(fields).WithError(err).Warn("Ack failed, the job may be graded again")
+			}
+			return
+		case <-b.release:
+			b.setDeadline(m.AckId, 0)
+			log.WithFields(fields).Warn("Grader stopping, running job released for redelivery")
+			return
+		case <-ticker.C:
+			if time.Since(started) < maxJobDuration {
+				b.setDeadline(m.AckId, lease)
+			}
+		}
+	}
+}
+
+// setDeadline extends a lease, or with 0 nacks the message for redelivery now.
+func (b *pubsubBroker) setDeadline(ackID string, d time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	defer cancel()
+	if err := b.client.SubscriptionAdminClient.ModifyAckDeadline(ctx, &pubsubpb.ModifyAckDeadlineRequest{
+		Subscription: b.subscription, AckIds: []string{ackID}, AckDeadlineSeconds: int32(d / time.Second),
+	}); err != nil {
+		log.WithError(err).Warnf("Set ack deadline to %s failed", d)
+	}
+}
+
+// StopConsuming stops pulling and waits shutdownGrace for running jobs. Jobs
+// still running then are nacked, so another grader takes them at once.
+func (b *pubsubBroker) StopConsuming() {
+	b.Broker.StopConsuming()
+	select {
+	case <-b.stopped:
+	case <-time.After(shutdownGrace):
+		close(b.release)
+		<-b.stopped
+	}
+	if err := b.client.Close(); err != nil {
+		log.WithError(err).Warn("Close Pub/Sub client")
+	}
+}
+
+// consumeOne runs one job and reports whether its message may be acked.
+func (b *pubsubBroker) consumeOne(msg *pubsubpb.PubsubMessage, p iface.TaskProcessor) bool {
+	fields := log.Fields{"message_id": msg.MessageId}
+	signature := new(tasks.Signature)
+	decoder := json.NewDecoder(bytes.NewReader(msg.Data))
+	decoder.UseNumber()
+	if err := decoder.Decode(signature); err != nil {
+		log.WithFields(fields).WithError(err).Error("Undecodable message dropped")
+		return true
+	}
+	if !b.IsTaskRegistered(signature.Name) {
+		log.WithFields(fields).WithField("task", signature.Name).Error("Unknown task dropped")
+		return true
+	}
+	if err := p.Process(signature); err != nil {
+		log.WithField("uuid", signature.UUID).WithError(err).Warn("Task processing error")
+	}
+	_, unanswered := b.unanswered.LoadAndDelete(signature)
+	return !unanswered
+}
+
+// Publish sends a signature to PUBSUB_TOPIC_NAME. Only cmd/send publishes.
+func (b *pubsubBroker) Publish(ctx context.Context, signature *tasks.Signature) error {
+	if b.topic == "" {
+		return errors.New("PUBSUB_TOPIC_NAME is required to publish")
+	}
+	data, err := json.Marshal(signature)
+	if err != nil {
+		return fmt.Errorf("encode signature: %w", err)
+	}
+	publisher := b.client.Publisher(b.topic)
+	defer publisher.Stop()
+	_, err = publisher.Publish(ctx, &pubsub.Message{Data: data}).Get(ctx)
+	return err
+}
