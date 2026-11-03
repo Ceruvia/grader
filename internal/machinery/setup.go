@@ -5,12 +5,21 @@ import (
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
 	amqpbackend "github.com/RichardKnop/machinery/v2/backends/amqp"
+	backendsiface "github.com/RichardKnop/machinery/v2/backends/iface"
 	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	"github.com/RichardKnop/machinery/v2/config"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	log "github.com/sirupsen/logrus"
 )
+
+// finalStateBackend skips the RECEIVED and STARTED writes. The AMQP backend opens
+// a broker connection per state write, and the Backend waits only for SUCCESS
+// or FAILURE, so the two intermediate states cost connections and give nothing.
+type finalStateBackend struct{ backendsiface.Backend }
+
+func (finalStateBackend) SetStateReceived(*tasks.Signature) error { return nil }
+func (finalStateBackend) SetStateStarted(*tasks.Signature) error  { return nil }
 
 func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 	cnf := &config.Config{
@@ -27,7 +36,7 @@ func startServer(cfg *ceruviaConfig.ServerConfig) (*machinery.Server, error) {
 	}
 
 	broker := amqpbroker.New(cnf)
-	backend := amqpbackend.New(cnf)
+	backend := finalStateBackend{amqpbackend.New(cnf)}
 	lock := eagerlock.New()
 	server := machinery.NewServer(cnf, broker, backend, lock)
 
