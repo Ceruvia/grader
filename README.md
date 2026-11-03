@@ -187,19 +187,19 @@ docker compose -f docker-compose.e2e.yaml up -d --build --wait
 
 ## Tests
 
-There are two kinds of tests. Neither uses an `integration` build tag.
+There are two kinds of tests. Isolate tests carry the `linux && integration` build tag, so a plain
+`go test` skips them.
 
 **Unit tests** need no isolate. They run on any machine with Go 1.26 or later:
 
 ```bash
 go build ./... && go vet ./...
-go test ./internal/helper/... ./internal/languages/... ./internal/machinery/... ./internal/models/... ./internal/monitoring/... ./internal/orchestrator/evaluator/...
+go test ./...
 ```
 
-**Isolate tests** run real compilers in real boxes. They live in `internal/orchestrator`,
-`internal/orchestrator/compilers`, `internal/orchestrator/engines`, `internal/sandboxes` and
-`internal/tasks`, and use the fixtures under `tests/`. They need the `test` image, started the way CI
-starts it (`.github/workflows/deploy.yml`, job `test`):
+**Isolate tests** run real compilers in real boxes. Every file that calls isolate has the build tag
+`linux && integration`, and they use the fixtures under `tests/`. They need the `test` image, started
+the way CI starts it (`.github/workflows/deploy.yml`, job `test`):
 
 ```bash
 docker build --target test -t ceruvia/grader:test .
@@ -216,11 +216,13 @@ docker exec grader-test systemctl is-active --quiet isolate.service
 Then run the whole suite and remove the container:
 
 ```bash
-docker exec -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
+docker exec -e GRADER_TEST_NO_JDK=1 -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
 docker rm -f grader-test
 ```
 
-Running `go test ./...` outside the image fails in the five isolate packages. That is expected.
+`GRADER_TEST_NO_JDK=1` skips the Java acceptance tests on purpose because the image has no JDK (see
+Known issues). Without `-tags integration` the isolate tests do not compile in, so a green plain
+`go test ./...` says nothing about grading.
 
 ## Bare-metal Makefile
 
@@ -286,7 +288,4 @@ Dependabot (`.github/dependabot.yml`) updates the pinned GitHub Actions weekly.
   no JDK. A Java submission gets `Compile Error` with `/usr/bin/javac: No such file or directory`.
   The Java acceptance tests fail without `/usr/bin/javac` and skip only when `GRADER_TEST_NO_JDK=1`
   is set. Do not offer Java questions until the image has a JDK.
-- **Isolate tests have no build tag.** 23 test files need a real isolate but have no `integration`
-  build tag. So `go test ./...` on a normal machine fails instead of skipping them, and you have to
-  list the unit packages by hand (see Tests).
 - **Bare-metal Makefile is stale.** See the Makefile section above.
