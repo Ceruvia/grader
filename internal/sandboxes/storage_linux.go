@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -53,13 +54,20 @@ func mountBoxStorage(path string) error {
 	return unix.Mount("tmpfs", path, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV, "size=268435456,nr_inodes=10000,mode=0777")
 }
 
+// unmountBoxStorage waits out short EBUSY. A fork in another worker (isolate for
+// a different box) copies every grader fd, including a box file the grader is
+// about to close, and holds it until the child execs. A holder that outlives the
+// bound still fails, so the pool quarantines the box instead of reusing it dirty.
 func unmountBoxStorage(path string) error {
-	err := unix.Unmount(path, 0)
-	if errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOENT) {
-		return nil
+	deadline := time.Now().Add(2 * time.Second)
+	for wait := time.Millisecond; ; wait = min(2*wait, 50*time.Millisecond) {
+		err := unix.Unmount(path, 0)
+		switch {
+		case err == nil, errors.Is(err, unix.EINVAL), errors.Is(err, unix.ENOENT):
+			return nil
+		case !errors.Is(err, unix.EBUSY) || time.Now().After(deadline):
+			return fmt.Errorf("unmount bounded box storage: %w", err)
+		}
+		time.Sleep(wait)
 	}
-	if err != nil {
-		return fmt.Errorf("unmount bounded box storage: %w", err)
-	}
-	return nil
 }
