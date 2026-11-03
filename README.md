@@ -283,8 +283,9 @@ Dependabot (`.github/dependabot.yml`) updates the pinned GitHub Actions weekly.
   Haskell rule (`internal/orchestrator/engines/engine_blackbox.go`). Measure where the memory goes
   (GHC runtime, compile or run) and decide the limit rule before any Haskell exam.
 - **Java has no JDK in the image.** `Java` is in the language registry, but the `Dockerfile` installs
-  no JDK. The Java acceptance tests skip with "no JDK in grader image". Do not offer Java questions
-  until the image has a JDK.
+  no JDK. A Java submission gets `Compile Error` with `/usr/bin/javac: No such file or directory`.
+  The Java acceptance tests fail without `/usr/bin/javac` and skip only when `GRADER_TEST_NO_JDK=1`
+  is set. Do not offer Java questions until the image has a JDK.
 - **Isolate tests have no build tag.** 23 test files need a real isolate but have no `integration`
   build tag. So `go test ./...` on a normal machine fails instead of skipping them, and you have to
   list the unit packages by hand (see Tests).

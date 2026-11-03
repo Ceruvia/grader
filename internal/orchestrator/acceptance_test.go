@@ -295,10 +295,21 @@ func TestGradingCaseSetupFailureKeepsIdentity(t *testing.T) {
 	}
 }
 
-func TestGradingJava(t *testing.T) {
-	if _, err := exec.LookPath("javac"); err != nil {
-		t.Skip("no JDK in grader image")
+// requireJDK fails when the JDK the grader calls is missing. Only an explicit
+// GRADER_TEST_NO_JDK=1 turns that into a skip, so Java coverage never drops quietly.
+func requireJDK(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("/usr/bin/javac"); err == nil {
+		return
 	}
+	if os.Getenv("GRADER_TEST_NO_JDK") == "1" {
+		t.Skip("Java grading NOT tested: /usr/bin/javac is missing and GRADER_TEST_NO_JDK=1")
+	}
+	t.Fatal("/usr/bin/javac is missing, so Java grading cannot be tested. Set GRADER_TEST_NO_JDK=1 to skip it on purpose")
+}
+
+func TestGradingJava(t *testing.T) {
+	requireJDK(t)
 	createJavaSubmission := func(mainSourceFilename string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithFiles{
 			Core: models.Core{
@@ -368,9 +379,7 @@ func TestGradingJava(t *testing.T) {
 }
 
 func TestGradingJavaWithMakefile(t *testing.T) {
-	if _, err := exec.LookPath("javac"); err != nil {
-		t.Skip("no JDK in grader image")
-	}
+	requireJDK(t)
 	createJavaWithMakefileSubmission := func(compileScript, runScript string, numOfTestcase, timeInMilisecond, memoryInKilobyte int) models.Submission {
 		return models.SubmissionWithBuilder{
 			Core: models.Core{

@@ -66,7 +66,7 @@ jobs:
           exit 1
 
       - name: Go vet and tests
-        run: docker exec -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
+        run: docker exec -e GRADER_TEST_NO_JDK=1 -w /src grader-test sh -c 'go vet -tags integration ./... && go test -tags integration ./...'
 
       - name: Remove container
         if: always()
