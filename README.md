@@ -72,11 +72,12 @@ With `gcppubsub` delivery is at least once:
 
 - The message is acked only after a 2xx or a final 4xx. If every attempt fails, it is nacked, so
   the job is graded again (by any grader). The backend ignores a second result for a final row.
-- A grader holds at most `GRADER_WORKER_COUNT` unacked messages, so graders share the load.
-- The client extends the ack deadline while a job runs, for up to 1 hour.
+- A grader holds at most `GRADER_WORKER_COUNT` unacked messages, so graders share the load. Each
+  worker slot pulls one message only when it is free. A failed ack or nack is retried every second,
+  and the slot pulls nothing new until it lands or the message's lease has lapsed.
+- The grader keeps a 30 s lease on a running job and extends it every 10 s, for up to 1 hour.
 - On SIGTERM the grader stops pulling and waits 5 s for running jobs. Jobs still running then are
-  nacked so another grader takes them at once. A killed grader's jobs come back after the
-  subscription's ack deadline.
+  nacked so another grader takes them at once. A killed grader's jobs come back within 30 s.
 
 ### Limits
 

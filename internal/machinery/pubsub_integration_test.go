@@ -11,7 +11,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -23,14 +25,17 @@ import (
 	"github.com/RichardKnop/machinery/v2/tasks"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
 	testProject = "grader-test"
 	// childEnv names the subscription a child grader process consumes.
 	childEnv = "GRADER_TEST_PUBSUB_CHILD"
-	// waitLimit bounds every wait for async work. Redelivery after a dead
-	// grader takes the 10 s ack deadline plus emulator latency.
+	// waitLimit bounds every wait for async work.
 	waitLimit = 60 * time.Second
 )
 
@@ -39,6 +44,8 @@ const (
 // because its tests run inside the grader container without Docker.
 func TestMain(m *testing.M) {
 	shutdownGrace = 200 * time.Millisecond
+	lease = 3 * time.Second
+	settleRetry = 50 * time.Millisecond
 	callbackBackoff = []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond}
 	os.Exit(runWithEmulator(m))
 }
@@ -193,6 +200,20 @@ func pending(t *testing.T, client *pubsub.Client, sub string) []string {
 	return ids
 }
 
+// pollPending pulls until a message arrives or until deadline, and returns what arrived.
+func pollPending(t *testing.T, client *pubsub.Client, sub string, deadline time.Time) []string {
+	t.Helper()
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
+	for time.Now().Before(deadline) {
+		if got := pending(t, client, sub); len(got) > 0 {
+			return got
+		}
+		<-tick.C
+	}
+	return nil
+}
+
 // Each grader holds at most GRADER_WORKER_COUNT messages, so two one-slot graders
 // run two jobs side by side instead of one grader taking both.
 func TestPubSubWorkerSlotsCapDeliveries(t *testing.T) {
@@ -331,13 +352,94 @@ func TestPubSubAcksOnlyAfterFinalAnswer(t *testing.T) {
 			}
 			stop()
 
-			got := pending(t, client, sub)
-			switch {
-			case tc.wantReleased && (len(got) != 1 || got[0] != taskID):
-				t.Fatalf("subscription holds %v after shutdown, want %s released", got, taskID)
-			case !tc.wantReleased && len(got) != 0:
-				t.Fatalf("subscription holds %v after shutdown, want the job acked", got)
+			if tc.wantReleased {
+				if got := pollPending(t, client, sub, time.Now().Add(waitLimit)); len(got) != 1 || got[0] != taskID {
+					t.Fatalf("subscription holds %v after shutdown, want %s released", got, taskID)
+				}
+				return
+			}
+			// An unacked job comes back once its lease lapses. The last extension
+			// landed before stop, so two leases after stop it would be back.
+			if got := pollPending(t, client, sub, time.Now().Add(2*lease)); len(got) != 0 {
+				t.Fatalf("subscription redelivered %v after its lease lapsed, want the job acked", got)
 			}
 		})
+	}
+}
+
+// faultyAcks fails the first n Acknowledge calls of the grader's client and
+// records the order of message pulls and acks.
+type faultyAcks struct {
+	mu     sync.Mutex
+	n      int
+	events []string
+}
+
+func (f *faultyAcks) record(e string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, e)
+}
+
+func (f *faultyAcks) snapshot() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.events...)
+}
+
+func (f *faultyAcks) intercept(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn,
+	invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	if strings.HasSuffix(method, "/Acknowledge") {
+		f.mu.Lock()
+		fail := f.n > 0
+		if fail {
+			f.n--
+		}
+		f.mu.Unlock()
+		if fail {
+			f.record("ack failed")
+			return status.Error(codes.FailedPrecondition, "injected ack failure")
+		}
+	}
+	err := invoker(ctx, method, req, reply, cc, opts...)
+	switch {
+	case err != nil:
+	case strings.HasSuffix(method, "/Acknowledge"):
+		f.record("ack")
+	case strings.HasSuffix(method, "/Pull") && len(reply.(*pubsubpb.PullResponse).ReceivedMessages) > 0:
+		f.record("pull")
+	}
+	return err
+}
+
+// A slot whose ack fails keeps the message and retries, so it never pulls a
+// second message while the first is still leased to it.
+func TestPubSubSlotHoldsMessageUntilAckLands(t *testing.T) {
+	client := requireEmulator(t)
+	topic, sub := newSubscription(t, client, 600)
+	callbackURL, _ := backendStub(t, http.StatusOK)
+	publish(t, client, topic, "blackbox")
+	publish(t, client, topic, "blackbox")
+
+	faults := &faultyAcks{n: 3}
+	pubsubClientOptions = []option.ClientOption{option.WithGRPCDialOption(grpc.WithUnaryInterceptor(faults.intercept))}
+	t.Cleanup(func() { pubsubClientOptions = nil })
+	startGrader(t, sub, 1, "blackbox", func(string) (string, error) { return "{}", nil }, callbackURL)
+
+	want := []string{"pull", "ack failed", "ack failed", "ack failed", "ack", "pull", "ack"}
+	deadline := time.Now().Add(waitLimit)
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for got := faults.snapshot(); ; got = faults.snapshot() {
+		if len(got) >= len(want) {
+			if !reflect.DeepEqual(got[:len(want)], want) {
+				t.Fatalf("pulls and acks %v, want %v", got, want)
+			}
+			return
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("pulls and acks %v within %s, want %v", got, waitLimit, want)
+		}
+		<-tick.C
 	}
 }

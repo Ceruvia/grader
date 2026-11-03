@@ -17,25 +17,35 @@ import (
 	"github.com/RichardKnop/machinery/v2/config"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
-	// lease is the ack deadline a running job keeps. A grader that dies stops
-	// extending it, so its jobs reach another grader within lease.
-	lease       = 30 * time.Second
-	extendEvery = lease / 3
 	// maxJobDuration ends lease extension. A job still running after it is
 	// redelivered to another grader.
 	maxJobDuration = time.Hour
+	// maxAckDeadline is Pub/Sub's longest ack deadline. Until the grader's own
+	// lease is confirmed, the message may stay leased that long.
+	maxAckDeadline = 600 * time.Second
 	rpcTimeout     = 10 * time.Second
 )
 
-// shutdownGrace is how long a stopping grader waits for running jobs before it
-// releases their messages for redelivery. It stays below Docker's default
-// 10 s stop timeout so the release happens before the container is killed.
-var shutdownGrace = 5 * time.Second
+var (
+	// lease is the ack deadline a running job keeps, extended every lease/3.
+	// A grader that dies stops extending it, so its jobs reach another grader
+	// within lease.
+	lease = 30 * time.Second
+	// settleRetry is the wait between failed ack or nack attempts.
+	settleRetry = time.Second
+	// shutdownGrace is how long a stopping grader waits for running jobs before
+	// it releases their messages for redelivery. It stays below Docker's
+	// default 10 s stop timeout so the release happens before the kill.
+	shutdownGrace = 5 * time.Second
+	// pubsubClientOptions are extra client options. Tests inject faults here.
+	pubsubClientOptions []option.ClientOption
+)
 
 // pubsubBroker consumes Machinery signatures from a Pub/Sub subscription.
 // Machinery's own gcppubsub broker cannot cap outstanding messages and acks
@@ -54,7 +64,7 @@ type pubsubBroker struct {
 }
 
 func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, unanswered *sync.Map) (*pubsubBroker, error) {
-	client, err := pubsub.NewClient(context.Background(), mq.ProjectID)
+	client, err := pubsub.NewClient(context.Background(), mq.ProjectID, pubsubClientOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("create Pub/Sub client: %w", err)
 	}
@@ -130,53 +140,81 @@ func (b *pubsubBroker) runSlot(ctx context.Context, p iface.TaskProcessor) error
 	}
 }
 
-// handle runs one job while keeping its lease, then acks or nacks it.
+// handle runs one job while keeping its lease, then acks or nacks it. The slot
+// stays busy until the broker took that answer or the lease has lapsed, so a
+// slot never holds two leased messages.
 func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor) {
 	fields := log.Fields{"message_id": m.Message.MessageId}
 	started := time.Now()
-	// The subscription's own deadline may be long, so a crash would hide the job for that long.
-	b.setDeadline(m.AckId, lease)
+	// The subscription's deadline holds until the first extension lands. It may
+	// be long, so a crash would hide the job for that long.
+	leasedUntil := started.Add(maxAckDeadline)
+	extend := func() {
+		if b.setDeadline(m.AckId, lease) == nil {
+			leasedUntil = time.Now().Add(lease)
+		}
+	}
+	extend()
 
 	answered := make(chan bool, 1)
 	go func() { answered <- b.consumeOne(m.Message, p) }()
-	ticker := time.NewTicker(extendEvery)
+	ticker := time.NewTicker(lease / 3)
 	defer ticker.Stop()
 	for {
 		select {
 		case ok := <-answered:
-			if !ok {
-				b.setDeadline(m.AckId, 0)
-				return
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
-			defer cancel()
-			if err := b.client.SubscriptionAdminClient.Acknowledge(ctx, &pubsubpb.AcknowledgeRequest{
-				Subscription: b.subscription, AckIds: []string{m.AckId},
-			}); err != nil {
-				log.WithFields(fields).WithError(err).Warn("Ack failed, the job may be graded again")
+			if ok {
+				b.settle(fields, leasedUntil, "ack", func() error {
+					ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+					defer cancel()
+					return b.client.SubscriptionAdminClient.Acknowledge(ctx, &pubsubpb.AcknowledgeRequest{
+						Subscription: b.subscription, AckIds: []string{m.AckId},
+					})
+				})
+			} else {
+				b.settle(fields, leasedUntil, "nack", func() error { return b.setDeadline(m.AckId, 0) })
 			}
 			return
 		case <-b.release:
-			b.setDeadline(m.AckId, 0)
 			log.WithFields(fields).Warn("Grader stopping, running job released for redelivery")
+			b.settle(fields, leasedUntil, "nack", func() error { return b.setDeadline(m.AckId, 0) })
 			return
 		case <-ticker.C:
 			if time.Since(started) < maxJobDuration {
-				b.setDeadline(m.AckId, lease)
+				extend()
 			}
 		}
 	}
 }
 
+// settle calls answer (ack or nack) until it succeeds or the lease has lapsed.
+// Once the lease lapsed the message is no longer this slot's, so it may pull again.
+func (b *pubsubBroker) settle(fields log.Fields, leasedUntil time.Time, what string, answer func() error) {
+	for {
+		err := answer()
+		if err == nil {
+			return
+		}
+		if !time.Now().Before(leasedUntil) {
+			log.WithFields(fields).WithError(err).Errorf("The %s failed until the lease lapsed, the job may be graded again", what)
+			return
+		}
+		log.WithFields(fields).WithError(err).Warnf("The %s failed, retrying", what)
+		time.Sleep(settleRetry)
+	}
+}
+
 // setDeadline extends a lease, or with 0 nacks the message for redelivery now.
-func (b *pubsubBroker) setDeadline(ackID string, d time.Duration) {
+func (b *pubsubBroker) setDeadline(ackID string, d time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancel()
-	if err := b.client.SubscriptionAdminClient.ModifyAckDeadline(ctx, &pubsubpb.ModifyAckDeadlineRequest{
+	err := b.client.SubscriptionAdminClient.ModifyAckDeadline(ctx, &pubsubpb.ModifyAckDeadlineRequest{
 		Subscription: b.subscription, AckIds: []string{ackID}, AckDeadlineSeconds: int32(d / time.Second),
-	}); err != nil {
+	})
+	if err != nil {
 		log.WithError(err).Warnf("Set ack deadline to %s failed", d)
 	}
+	return err
 }
 
 // StopConsuming stops pulling and waits shutdownGrace for running jobs. Jobs
