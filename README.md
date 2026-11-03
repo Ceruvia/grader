@@ -288,10 +288,4 @@ Dependabot (`.github/dependabot.yml`) updates the pinned GitHub Actions weekly.
 - **Isolate tests have no build tag.** 23 test files need a real isolate but have no `integration`
   build tag. So `go test ./...` on a normal machine fails instead of skipping them, and you have to
   list the unit packages by hand (see Tests).
-- **The acceptance helper treats Compile Error loosely.** `assertGradingResult` in
-  `internal/orchestrator/acceptance_test.go` never compares the status of a run expected to succeed,
-  and it skips all verdict checks when the actual status is `Compile Error`. The `Success_Hello World`
-  cases in `TestGradingC` and `TestGradingCWithMakefile` list `Compile Error` as their expected status
-  and still pass. Only the `IsSuccess` flag guards these cases, so a wrong status in a test table goes
-  unnoticed.
 - **Bare-metal Makefile is stale.** See the Makefile section above.

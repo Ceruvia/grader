@@ -52,7 +52,7 @@ func TestGradingC(t *testing.T) {
 			Title:           "Success_Hello World",
 			Submisison:      createCSubmission("hello.c", 2, 1000, 1024),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_hello",
-			ExpectedResult:  createExpectedResult(true, "Compile Error", "", []string{"AC", "WA"}),
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
 		},
 		{
 			Title:           "Success_Kotak Bola",
@@ -149,6 +149,8 @@ func TestGradingCWithMakefile(t *testing.T) {
 		}
 	}
 
+	// make itself runs in the box cgroup and needs about 7 MiB, so a 1 MiB
+	// limit killed random cases with SIGKILL.
 	GradingTests := []struct {
 		Title           string
 		Submisison      models.Submission
@@ -157,43 +159,43 @@ func TestGradingCWithMakefile(t *testing.T) {
 	}{
 		{
 			Title:           "Success_Hello World",
-			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_hello",
-			ExpectedResult:  createExpectedResult(true, "Compile Error", "", []string{"AC", "WA"}),
+			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "WA"}),
 		},
 		{
 			Title:           "Success_Kotak Bola",
-			Submisison:      createCWithMakefileSubmission("compile", "prog", 20, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("compile", "prog", 20, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_kotakbola",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC", "AC"}),
 		},
 		{
 			Title:           "Success_Fix Tags",
-			Submisison:      createCWithMakefileSubmission("compile", "prog", 10, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("compile", "prog", 10, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/scs_adt_fixtags",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"AC", "AC", "AC", "AC", "WA", "AC", "AC", "AC", "AC", "AC"}),
 		},
 		{
 			Title:           "Compile Error_Empty file",
-			Submisison:      createCWithMakefileSubmission("", "empty", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "empty", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_empty",
 			ExpectedResult:  createExpectedResult(false, "Compile Error", "undefined reference to", []string{}),
 		},
 		{
 			Title:           "Compile Error_No file",
-			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_nofile",
 			ExpectedResult:  createExpectedResult(false, "Compile Error", "empty.c: No such file or directory", []string{}),
 		},
 		{
 			Title:           "Compile Error_No makefile",
-			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "hello", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/ce_nomakefile",
 			ExpectedResult:  createExpectedResult(false, "Compile Error", "make: *** No targets specified and no makefile found.  Stop.", []string{}),
 		},
 		{
 			Title:           "Runtime Error_Null pointer",
-			Submisison:      createCWithMakefileSubmission("", "nullpointer", 2, 1000, 1024),
+			Submisison:      createCWithMakefileSubmission("", "nullpointer", 2, 1000, 65536),
 			OriginalFileDir: "../../tests/c_test/e2e/re_nullpointer",
 			ExpectedResult:  createExpectedResult(true, "Success", "", []string{"RE", "AC"}),
 		},
@@ -512,26 +514,19 @@ func TestGradingHaskellWithMakefile(t *testing.T) {
 func assertGradingResult(t testing.TB, got, want evaluator.GradingResult) {
 	t.Helper()
 
-	if got.IsSuccess != want.IsSuccess {
-		t.Fatalf("expected IsSuccess to be %t, instead got %+v", want.IsSuccess, got)
+	if got.IsSuccess != want.IsSuccess || got.Status != want.Status {
+		t.Fatalf("expected IsSuccess %t and status %q, instead got %+v", want.IsSuccess, want.Status, got)
 	}
-	if !want.IsSuccess && got.Status != want.Status {
-		t.Errorf("expected status %q, instead got %+v", want.Status, got)
-	}
-
 	if !strings.Contains(got.ErrorMessage, want.ErrorMessage) {
 		t.Errorf("expected to get %q errorMessage, instead got %+v", want.ErrorMessage, got)
 	}
-
-	if got.Status != "Compile Error" {
-		if len(got.TestcaseGradingResult) != len(want.TestcaseGradingResult) {
-			t.Fatalf("expected got (%d) and want (%d) results to be the same number, instead got %+v", len(got.TestcaseGradingResult), len(want.TestcaseGradingResult), got)
-		}
-
-		for i, _ := range got.TestcaseGradingResult {
-			if got.TestcaseGradingResult[i].Verdict != want.TestcaseGradingResult[i].Verdict {
-				t.Errorf("expected %q TC to have %s verdict, instead got %+v", want.TestcaseGradingResult[i].InputFilename+"-"+want.TestcaseGradingResult[i].OutputFilename, want.TestcaseGradingResult[i].Verdict, got.TestcaseGradingResult[i])
-			}
+	if len(got.TestcaseGradingResult) != len(want.TestcaseGradingResult) {
+		t.Fatalf("expected %d case results, instead got %d: %+v", len(want.TestcaseGradingResult), len(got.TestcaseGradingResult), got)
+	}
+	for i, w := range want.TestcaseGradingResult {
+		g := got.TestcaseGradingResult[i]
+		if g.Verdict != w.Verdict || g.InputFilename != w.InputFilename || g.OutputFilename != w.OutputFilename {
+			t.Errorf("case %d: expected %s/%s %s, instead got %+v", i+1, w.InputFilename, w.OutputFilename, w.Verdict, g)
 		}
 	}
 }
