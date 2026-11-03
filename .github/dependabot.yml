@@ -14,3 +14,9 @@ updates:
     groups:
       gomod-minor-patch:
         update-types: [minor, patch]
+
+  # Dockerfile base images: digest bumps for the pinned golang toolchain.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
