@@ -54,6 +54,10 @@ func mountBoxStorage(path string) error {
 	return unix.Mount("tmpfs", path, "tmpfs", unix.MS_NOSUID|unix.MS_NODEV, "size=268435456,nr_inodes=10000,mode=0777")
 }
 
+// onUnmountBusy runs after each EBUSY. Tests use it to release a holder only
+// once a real unmount attempt has failed.
+var onUnmountBusy = func() {}
+
 // unmountBoxStorage waits out short EBUSY. A fork in another worker (isolate for
 // a different box) copies every grader fd, including a box file the grader is
 // about to close, and holds it until the child execs. A holder that outlives the
@@ -65,9 +69,10 @@ func unmountBoxStorage(path string) error {
 		switch {
 		case err == nil, errors.Is(err, unix.EINVAL), errors.Is(err, unix.ENOENT):
 			return nil
-		case !errors.Is(err, unix.EBUSY) || time.Now().After(deadline):
+		case !errors.Is(err, unix.EBUSY) || !time.Now().Before(deadline):
 			return fmt.Errorf("unmount bounded box storage: %w", err)
 		}
-		time.Sleep(wait)
+		onUnmountBusy()
+		time.Sleep(min(wait, time.Until(deadline)))
 	}
 }
