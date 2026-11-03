@@ -1,0 +1,30 @@
+name: grype scan
+description: Install a pinned, checksum-verified grype and fail on Critical or High findings that have a fix.
+
+inputs:
+  image:
+    description: Image to scan, with grype's scheme, e.g. registry:ghcr.io/org/app@sha256:... or docker:app:tag
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install grype (pinned, checksum verified)
+      shell: bash
+      env:
+        # Bump together with a review of the new release. sha256 is of the linux amd64 archive.
+        GRYPE_VERSION: 0.121.1
+        GRYPE_SHA256: bc3ea3f9e6fd56ac781c08c6c5e614271b79f438200757f6932085c19b0a4657
+      run: |
+        set -euo pipefail
+        tgz="$RUNNER_TEMP/grype.tar.gz"
+        curl -fsSL --retry 3 -o "$tgz" "https://github.com/anchore/grype/releases/download/v$GRYPE_VERSION/grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+        echo "$GRYPE_SHA256  $tgz" | sha256sum -c -
+        tar -xzf "$tgz" -C "$RUNNER_TEMP" grype
+
+    # Exceptions: .grype.yaml in the repo root.
+    - name: grype
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: '"$RUNNER_TEMP/grype" "$IMAGE" --only-fixed --fail-on high'

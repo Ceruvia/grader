@@ -12,3 +12,7 @@ linters:
     gosec:
       confidence: high
       severity: medium
+issues:
+  # 0 means no cap. The defaults hide findings after 3 of the same kind and 50 per linter.
+  max-issues-per-linter: 0
+  max-same-issues: 0

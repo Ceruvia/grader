@@ -1,15 +1,13 @@
 name: Security
 
-# Pushes and pull requests that deploy.yml already covers (main, staging, dev) reach this file through
-# its `security` job, which gates the image push. Everything else runs here directly, plus a weekly run
-# on the default branch to catch advisories published after the last push.
+# Source scans. deploy.yml calls this file for every push to main or staging and every pull request,
+# and its `publish` job needs it. The image scan is not here: it runs in deploy.yml, on the exact
+# image that gets pushed. This file also runs weekly, to catch advisories published after the last
+# push, and rebuilds the image from the default branch for that.
 on:
-  push:
-    branches-ignore: [main, staging]
-  pull_request:
-    branches-ignore: [main, staging, dev]
   schedule:
     - cron: "17 3 * * 1"
+  workflow_dispatch:
   workflow_call:
 
 permissions:
@@ -18,10 +16,10 @@ permissions:
 env:
   # Pinned, bump together with a review of the new release. sha256 is of the linux amd64 archive.
   GOVULNCHECK_VERSION: v1.1.4
+  GOLANGCI_LINT_VERSION: 2.15.0
+  GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
   GITLEAKS_VERSION: 8.30.1
   GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-  GRYPE_VERSION: 0.121.1
-  GRYPE_SHA256: bc3ea3f9e6fd56ac781c08c6c5e614271b79f438200757f6932085c19b0a4657
 
 jobs:
   # Fails only on vulnerabilities whose vulnerable symbol this code can reach.
@@ -51,11 +49,16 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install golangci-lint (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          tgz="$RUNNER_TEMP/golangci-lint.tar.gz"
+          curl -fsSL --retry 3 -o "$tgz" "https://github.com/golangci/golangci-lint/releases/download/v$GOLANGCI_LINT_VERSION/golangci-lint-$GOLANGCI_LINT_VERSION-linux-amd64.tar.gz"
+          echo "$GOLANGCI_LINT_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$RUNNER_TEMP" --strip-components=1 "golangci-lint-$GOLANGCI_LINT_VERSION-linux-amd64/golangci-lint"
+
       - name: golangci-lint (gosec)
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        with:
-          version: v2.15.0
-          args: --build-tags integration
+        run: '"$RUNNER_TEMP/golangci-lint" run --build-tags integration'
 
   # Whole history, not only the new commits: a secret that was removed later is still leaked.
   # Exceptions: .gitleaksignore.
@@ -78,9 +81,10 @@ jobs:
       - name: gitleaks
         run: '"$RUNNER_TEMP/gitleaks" git --no-banner --redact -v .'
 
-  # Scans the image that deploy.yml would push: same Dockerfile, default (runtime) target. Fails on
-  # Critical and High with a fix available. Exceptions: .grype.yaml.
+  # Weekly run only. Push and pull request runs scan the image in deploy.yml. The event name inside a
+  # called workflow is the caller's, so this cannot run twice for them.
   image:
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -99,13 +103,6 @@ jobs:
           tags: ceruvia/grader:scan
           cache-from: type=gha,scope=grader-test
 
-      - name: Install grype (pinned, checksum verified)
-        run: |
-          set -euo pipefail
-          tgz="$RUNNER_TEMP/grype.tar.gz"
-          curl -fsSL --retry 3 -o "$tgz" "https://github.com/anchore/grype/releases/download/v$GRYPE_VERSION/grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
-          echo "$GRYPE_SHA256  $tgz" | sha256sum -c -
-          tar -xzf "$tgz" -C "$RUNNER_TEMP" grype
-
-      - name: grype
-        run: '"$RUNNER_TEMP/grype" docker:ceruvia/grader:scan --only-fixed --fail-on high'
+      - uses: ./.github/actions/grype-scan
+        with:
+          image: docker:ceruvia/grader:scan

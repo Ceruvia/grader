@@ -72,8 +72,8 @@ jobs:
         if: always()
         run: docker rm -f grader-test
 
-  # Static and security scans (govulncheck, gosec, gitleaks, grype on the image). A failure here stops the
-  # image push, since `build` needs it.
+  # Source scans (govulncheck, gosec, gitleaks). `publish` needs them, so a failure stops the image from
+  # getting a tag. The image itself is scanned in `build`.
   security:
     uses: ./.github/workflows/security.yml
     permissions:
@@ -82,9 +82,10 @@ jobs:
   # Builds the image while the tests run, so the Docker build is off the critical path. The image is
   # pushed by digest only and carries no tag, so nothing can pull or deploy it by name. `publish` tags it
   # after every test job of this commit passed, and only then hands the reference to the deploy job.
+  # The same job scans that image with grype (Critical and High with a fix fail the run), by digest from
+  # the registry, so the scan sees the exact bytes `publish` tags. A pull request builds the image
+  # without pushing it and scans that build.
   build:
-    needs: [security]
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -103,6 +104,7 @@ jobs:
           cleanup: false
 
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -111,6 +113,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
+        if: github.event_name != 'pull_request'
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -126,6 +129,7 @@ jobs:
 
       - name: Build and push by digest
         id: build
+        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
@@ -135,13 +139,29 @@ jobs:
           # base stages with the test image, so it reads the test job cache and exports none of its own.
           cache-from: type=gha,scope=grader-test
 
-  # Gate: needs every test job and the build of the same commit. The tested digest gets its tags here, a
+      # Pull requests: the same Dockerfile and stage, built into the local daemon and not pushed.
+      - name: Build without pushing
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          load: true
+          tags: ceruvia/grader:scan
+          cache-from: type=gha,scope=grader-test
+
+      # The digest is what `publish` tags, so the scan reads that digest from the registry, not a rebuild.
+      - uses: ./.github/actions/grype-scan
+        with:
+          image: ${{ github.event_name == 'pull_request' && 'docker:ceruvia/grader:scan' || format('registry:{0}@{1}', env.IMAGE, steps.build.outputs.digest) }}
+
+  # Gate: needs every test job, the source scans and the build (with its image scan) of the same commit.
+  # The tested digest gets its tags here, a
   # manifest-only copy that takes a few seconds and keeps the digest. The VM runs exactly the bytes that
   # were built next to the tests, even if someone re-pushes the tag.
   publish:
     # Pull requests only run the test jobs above.
     if: github.event_name != 'pull_request'
-    needs: [test, build]
+    needs: [test, security, build]
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
