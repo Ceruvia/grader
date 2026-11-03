@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,6 +47,7 @@ func TestMain(m *testing.M) {
 	shutdownGrace = 200 * time.Millisecond
 	lease = 3 * time.Second
 	settleRetry = 50 * time.Millisecond
+	rpcTimeout = 2 * time.Second
 	callbackBackoff = []time.Duration{10 * time.Millisecond, 10 * time.Millisecond, 10 * time.Millisecond}
 	os.Exit(runWithEmulator(m))
 }
@@ -367,49 +369,103 @@ func TestPubSubAcksOnlyAfterFinalAnswer(t *testing.T) {
 	}
 }
 
-// faultyAcks fails the first n Acknowledge calls of the grader's client and
-// records the order of message pulls and acks.
-type faultyAcks struct {
+// rpcFaults injects broker faults into the grader's client and records, in
+// order, every message pull, ack, nack and lease lapse it sees.
+type rpcFaults struct {
 	mu     sync.Mutex
-	n      int
 	events []string
+	// failAcks fails that many Acknowledge calls, or all of them when negative.
+	failAcks int
+	// loseExtension applies the extension with this 1-based number and then
+	// reports a failure, as when its response is lost. Zero loses none.
+	loseExtension int
+	extensions    int
+	// lostExtension is closed when the lost extension was applied.
+	lostExtension chan struct{}
 }
 
-func (f *faultyAcks) record(e string) {
+func (f *rpcFaults) record(e string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.events = append(f.events, e)
 }
 
-func (f *faultyAcks) snapshot() []string {
+func (f *rpcFaults) snapshot() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]string(nil), f.events...)
 }
 
-func (f *faultyAcks) intercept(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn,
+func (f *rpcFaults) intercept(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn,
 	invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	if strings.HasSuffix(method, "/Acknowledge") {
-		f.mu.Lock()
-		fail := f.n > 0
-		if fail {
-			f.n--
-		}
-		f.mu.Unlock()
-		if fail {
-			f.record("ack failed")
-			return status.Error(codes.FailedPrecondition, "injected ack failure")
-		}
+	injected := status.Error(codes.FailedPrecondition, "injected fault")
+	f.mu.Lock()
+	failAck := strings.HasSuffix(method, "/Acknowledge") && f.failAcks != 0
+	if failAck && f.failAcks > 0 {
+		f.failAcks--
 	}
+	lose := false
+	if m, ok := req.(*pubsubpb.ModifyAckDeadlineRequest); ok && m.AckDeadlineSeconds > 0 {
+		f.extensions++
+		lose = f.extensions == f.loseExtension
+	}
+	f.mu.Unlock()
+	if failAck {
+		f.record("ack failed")
+		return injected
+	}
+
+	sent := time.Now()
 	err := invoker(ctx, method, req, reply, cc, opts...)
-	switch {
-	case err != nil:
-	case strings.HasSuffix(method, "/Acknowledge"):
-		f.record("ack")
-	case strings.HasSuffix(method, "/Pull") && len(reply.(*pubsubpb.PullResponse).ReceivedMessages) > 0:
-		f.record("pull")
+	switch m := req.(type) {
+	case *pubsubpb.AcknowledgeRequest:
+		if err == nil {
+			f.record("ack")
+		}
+	case *pubsubpb.PullRequest:
+		if err == nil && len(reply.(*pubsubpb.PullResponse).ReceivedMessages) > 0 {
+			f.record("pull")
+		}
+	case *pubsubpb.ModifyAckDeadlineRequest:
+		if err == nil && m.AckDeadlineSeconds == 0 {
+			f.record("nack")
+		}
+		if err == nil && lose {
+			// The broker applied it no earlier than sent, so the message is
+			// leased at least until sent plus the new deadline.
+			time.AfterFunc(time.Until(sent.Add(time.Duration(m.AckDeadlineSeconds)*time.Second)), func() {
+				f.record("lease lapsed")
+			})
+			close(f.lostExtension)
+			return injected
+		}
 	}
 	return err
+}
+
+// startFaultyGrader starts a one-slot grader whose broker calls go through f.
+func startFaultyGrader(t *testing.T, f *rpcFaults, sub string, fn any, callbackURL string) func() {
+	t.Helper()
+	pubsubClientOptions = []option.ClientOption{option.WithGRPCDialOption(grpc.WithUnaryInterceptor(f.intercept))}
+	defer func() { pubsubClientOptions = nil }()
+	return startGrader(t, sub, 1, "blackbox", fn, callbackURL)
+}
+
+// waitEvents polls until f has recorded at least n events and returns them.
+func waitEvents(t *testing.T, f *rpcFaults, n int) []string {
+	t.Helper()
+	deadline := time.Now().Add(waitLimit)
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for got := f.snapshot(); ; got = f.snapshot() {
+		if len(got) >= n {
+			return got
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("got only %v within %s", got, waitLimit)
+		}
+		<-tick.C
+	}
 }
 
 // A slot whose ack fails keeps the message and retries, so it never pulls a
@@ -421,25 +477,61 @@ func TestPubSubSlotHoldsMessageUntilAckLands(t *testing.T) {
 	publish(t, client, topic, "blackbox")
 	publish(t, client, topic, "blackbox")
 
-	faults := &faultyAcks{n: 3}
-	pubsubClientOptions = []option.ClientOption{option.WithGRPCDialOption(grpc.WithUnaryInterceptor(faults.intercept))}
-	t.Cleanup(func() { pubsubClientOptions = nil })
-	startGrader(t, sub, 1, "blackbox", func(string) (string, error) { return "{}", nil }, callbackURL)
+	faults := &rpcFaults{failAcks: 3}
+	startFaultyGrader(t, faults, sub, func(string) (string, error) { return "{}", nil }, callbackURL)
 
 	want := []string{"pull", "ack failed", "ack failed", "ack failed", "ack", "pull", "ack"}
-	deadline := time.Now().Add(waitLimit)
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
-	for got := faults.snapshot(); ; got = faults.snapshot() {
-		if len(got) >= len(want) {
-			if !reflect.DeepEqual(got[:len(want)], want) {
-				t.Fatalf("pulls and acks %v, want %v", got, want)
-			}
-			return
-		}
-		if !time.Now().Before(deadline) {
-			t.Fatalf("pulls and acks %v within %s, want %v", got, waitLimit, want)
-		}
-		<-tick.C
+	if got := waitEvents(t, faults, len(want)); !reflect.DeepEqual(got[:len(want)], want) {
+		t.Fatalf("pulls and acks %v, want %v", got, want)
+	}
+}
+
+// An extension whose response is lost may still have been applied, so a slot
+// whose ack keeps failing waits out that extension before it pulls again.
+func TestPubSubSlotCountsLostExtensionAsLeased(t *testing.T) {
+	client := requireEmulator(t)
+	topic, sub := newSubscription(t, client, 600)
+	callbackURL, _ := backendStub(t, http.StatusOK)
+	publish(t, client, topic, "blackbox")
+	publish(t, client, topic, "blackbox")
+
+	// Extension 1 is the lease set on receipt, extension 2 the first renewal.
+	faults := &rpcFaults{failAcks: -1, loseExtension: 2, lostExtension: make(chan struct{})}
+	startFaultyGrader(t, faults, sub, func(string) (string, error) {
+		<-faults.lostExtension
+		return "{}", nil
+	}, callbackURL)
+
+	got := waitEvents(t, faults, 1)
+	for !slices.Contains(got[1:], "pull") {
+		got = waitEvents(t, faults, len(got)+1)
+	}
+	second := slices.Index(got[1:], "pull") + 1
+	if lapsed := slices.Index(got, "lease lapsed"); lapsed < 0 || lapsed > second {
+		t.Fatalf("events %v: the slot pulled again while its first message was still leased", got)
+	}
+}
+
+// A stopping grader does not wait on a failing ack: it nacks once and stops
+// within the shutdown grace.
+func TestPubSubStopAbandonsFailingAck(t *testing.T) {
+	client := requireEmulator(t)
+	topic, sub := newSubscription(t, client, 600)
+	callbackURL, _ := backendStub(t, http.StatusOK)
+	publish(t, client, topic, "blackbox")
+
+	faults := &rpcFaults{failAcks: -1}
+	stop := startFaultyGrader(t, faults, sub, func(string) (string, error) { return "{}", nil }, callbackURL)
+	waitEvents(t, faults, 2) // pull, ack failed
+
+	stopped := make(chan struct{})
+	go func() { stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(shutdownGrace + time.Second):
+		t.Fatalf("stop still blocked after the %s grace, events %v", shutdownGrace, faults.snapshot())
+	}
+	if got := faults.snapshot(); !slices.Contains(got, "nack") {
+		t.Fatalf("events %v, want the stopping grader to nack its unacked job", got)
 	}
 }

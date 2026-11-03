@@ -29,7 +29,6 @@ const (
 	// maxAckDeadline is Pub/Sub's longest ack deadline. Until the grader's own
 	// lease is confirmed, the message may stay leased that long.
 	maxAckDeadline = 600 * time.Second
-	rpcTimeout     = 10 * time.Second
 )
 
 var (
@@ -37,6 +36,8 @@ var (
 	// A grader that dies stops extending it, so its jobs reach another grader
 	// within lease.
 	lease = 30 * time.Second
+	// rpcTimeout bounds each ack, nack or extension call, retries included.
+	rpcTimeout = 10 * time.Second
 	// settleRetry is the wait between failed ack or nack attempts.
 	settleRetry = time.Second
 	// shutdownGrace is how long a stopping grader waits for running jobs before
@@ -146,12 +147,24 @@ func (b *pubsubBroker) runSlot(ctx context.Context, p iface.TaskProcessor) error
 func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor) {
 	fields := log.Fields{"message_id": m.Message.MessageId}
 	started := time.Now()
-	// The subscription's deadline holds until the first extension lands. It may
-	// be long, so a crash would hide the job for that long.
-	leasedUntil := started.Add(maxAckDeadline)
+	// confirmed is the deadline set by the last extension that answered. Until
+	// one answers, the subscription's own deadline holds, which may be long, so
+	// a crash would hide the job for that long. unconfirmed is the latest
+	// deadline a failed extension may still have set: its response may be lost
+	// after the broker applied it, at the latest when its call timed out.
+	confirmed, unconfirmed := started.Add(maxAckDeadline), time.Time{}
+	leasedUntil := func() time.Time {
+		if unconfirmed.After(confirmed) {
+			return unconfirmed
+		}
+		return confirmed
+	}
 	extend := func() {
+		sent := time.Now()
 		if b.setDeadline(m.AckId, lease) == nil {
-			leasedUntil = time.Now().Add(lease)
+			confirmed = time.Now().Add(lease)
+		} else if until := sent.Add(rpcTimeout + lease); until.After(unconfirmed) {
+			unconfirmed = until
 		}
 	}
 	extend()
@@ -163,21 +176,11 @@ func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor
 	for {
 		select {
 		case ok := <-answered:
-			if ok {
-				b.settle(fields, leasedUntil, "ack", func() error {
-					ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
-					defer cancel()
-					return b.client.SubscriptionAdminClient.Acknowledge(ctx, &pubsubpb.AcknowledgeRequest{
-						Subscription: b.subscription, AckIds: []string{m.AckId},
-					})
-				})
-			} else {
-				b.settle(fields, leasedUntil, "nack", func() error { return b.setDeadline(m.AckId, 0) })
-			}
+			b.settle(fields, m.AckId, leasedUntil(), ok)
 			return
 		case <-b.release:
 			log.WithFields(fields).Warn("Grader stopping, running job released for redelivery")
-			b.settle(fields, leasedUntil, "nack", func() error { return b.setDeadline(m.AckId, 0) })
+			b.settle(fields, m.AckId, leasedUntil(), false)
 			return
 		case <-ticker.C:
 			if time.Since(started) < maxJobDuration {
@@ -187,21 +190,43 @@ func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor
 	}
 }
 
-// settle calls answer (ack or nack) until it succeeds or the lease has lapsed.
-// Once the lease lapsed the message is no longer this slot's, so it may pull again.
-func (b *pubsubBroker) settle(fields log.Fields, leasedUntil time.Time, what string, answer func() error) {
+// settle acks (or nacks) the message until that lands, the lease has lapsed or
+// the grader stops. Once the lease lapsed the message is no longer this
+// slot's, so it may pull again. A stopping grader nacks once, best effort, and
+// otherwise lets the lease lapse, so shutdown never waits on a failing broker.
+func (b *pubsubBroker) settle(fields log.Fields, ackID string, leasedUntil time.Time, ack bool) {
+	what, answer := "nack", func() error { return b.setDeadline(ackID, 0) }
+	if ack {
+		what, answer = "ack", func() error { return b.acknowledge(ackID) }
+	}
 	for {
+		if !time.Now().Before(leasedUntil) {
+			log.WithFields(fields).Errorf("The %s did not land before the lease lapsed, the job may be graded again", what)
+			return
+		}
 		err := answer()
 		if err == nil {
 			return
 		}
-		if !time.Now().Before(leasedUntil) {
-			log.WithFields(fields).WithError(err).Errorf("The %s failed until the lease lapsed, the job may be graded again", what)
+		log.WithFields(fields).WithError(err).Warnf("The %s failed, retrying", what)
+		select {
+		case <-time.After(settleRetry):
+		case <-b.release:
+			if ack {
+				_ = b.setDeadline(ackID, 0)
+			}
+			log.WithFields(fields).Warnf("Grader stopping, the %s is abandoned and the job may be graded again", what)
 			return
 		}
-		log.WithFields(fields).WithError(err).Warnf("The %s failed, retrying", what)
-		time.Sleep(settleRetry)
 	}
+}
+
+func (b *pubsubBroker) acknowledge(ackID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	defer cancel()
+	return b.client.SubscriptionAdminClient.Acknowledge(ctx, &pubsubpb.AcknowledgeRequest{
+		Subscription: b.subscription, AckIds: []string{ackID},
+	})
 }
 
 // setDeadline extends a lease, or with 0 nacks the message for redelivery now.
