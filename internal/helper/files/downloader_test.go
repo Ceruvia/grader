@@ -3,6 +3,7 @@ package files_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,7 +22,7 @@ func assertNoFile(t *testing.T, path string) {
 }
 
 func TestDownloadFile(t *testing.T) {
-	t.Run("hanging server stops at the context deadline", func(t *testing.T) {
+	t.Run("hanging server stops when the context is cancelled", func(t *testing.T) {
 		for _, test := range []struct {
 			name        string
 			sendHeaders bool
@@ -30,25 +31,33 @@ func TestDownloadFile(t *testing.T) {
 			{"during body", true},
 		} {
 			t.Run(test.name, func(t *testing.T) {
+				reached := make(chan struct{})
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if test.sendHeaders {
 						_, _ = w.Write([]byte("partial"))
 						w.(http.Flusher).Flush()
 					}
+					close(reached)
 					<-r.Context().Done()
 				}))
 				t.Cleanup(server.Close)
 				path := filepath.Join(t.TempDir(), "submission.zip")
-				ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
-				start := time.Now()
-				err := files.DownloadFile(ctx, path, server.URL)
-				if err == nil {
-					t.Fatal("expected an error from a hanging server")
-				}
-				if elapsed := time.Since(start); elapsed > time.Second {
-					t.Fatalf("download returned after %s, want under 1s", elapsed)
+				done := make(chan error, 1)
+				go func() { done <- files.DownloadFile(ctx, path, server.URL) }()
+				<-reached
+				cancel()
+				// The bound only stops a hang. It is far below the 30 s client
+				// timeout, so only the cancelled context can end the download.
+				select {
+				case err := <-done:
+					if !errors.Is(err, context.Canceled) {
+						t.Fatalf("expected the cancelled context to end the download, got %v", err)
+					}
+				case <-time.After(10 * time.Second):
+					t.Fatal("download ignored the cancelled context")
 				}
 				assertNoFile(t, path)
 			})
