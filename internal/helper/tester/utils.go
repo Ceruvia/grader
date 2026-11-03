@@ -83,7 +83,7 @@ func PlantGraderEnv(t testing.TB, content string) {
 			t.Errorf("%s changed during the test: %q, %v", GraderEnvPath, planted, err)
 		}
 		if originalErr == nil {
-			if err := os.WriteFile(GraderEnvPath, original, 0600); err != nil {
+			if err := os.WriteFile(GraderEnvPath, original, 0600); err != nil { //nolint:gosec // GraderEnvPath is a constant, and this test-only package imports testing.
 				t.Error(err)
 			}
 		} else if err := os.Remove(GraderEnvPath); err != nil {

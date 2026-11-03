@@ -21,7 +21,7 @@ const defaultReadLimitBytes = 100 << 20
 // OpenBoxFile opens untrusted output without following symlinks or blocking on
 // special files. The returned descriptor belongs to the caller.
 func OpenBoxFile(sbx Sandbox, filename string) (*os.File, error) {
-	f, err := os.OpenFile(filepath.Join(sbx.GetBoxdir(), filename), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, err := os.OpenFile(filepath.Join(sbx.GetBoxdir(), filename), os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // grader-chosen name in the box, O_NOFOLLOW and the regular-file check below.
 	if err != nil {
 		return nil, err
 	}

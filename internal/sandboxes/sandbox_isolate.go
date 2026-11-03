@@ -184,7 +184,9 @@ func (s *IsolateSandbox) BuildCommand(runCommand command.CommandBuilder, redirec
 func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionFiles RedirectionFiles) SandboxExecutionResult {
 	command := s.BuildCommand(runCommand, redirectionFiles)
 
-	cmd := exec.Command(command.Program, command.Args...)
+	// No shell: the program is the operator's isolate binary, and every argument that can carry a
+	// submission filename follows `--run --`, so isolate runs it inside the box and never parses it.
+	cmd := exec.Command(command.Program, command.Args...) //nolint:gosec // see above.
 	var output diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err := cmd.Run()
@@ -238,7 +240,7 @@ func (s *IsolateSandbox) initSandbox() error {
 	command.AddArgs("--cg")
 	command.AddArgs("--init")
 
-	cmd := exec.Command(command.Program, command.Args...)
+	cmd := exec.Command(command.Program, command.Args...) //nolint:gosec // operator's isolate binary, args are the box id and fixed flags.
 	var stdout diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stdout
 	err := cmd.Run()
@@ -257,7 +259,7 @@ func (s *IsolateSandbox) initSandbox() error {
 func (s *IsolateSandbox) cleanUpIsolate() error {
 	commandArgs := []string{"-b", strconv.Itoa(s.BoxId), "--cg", "--cleanup"}
 
-	cmd := exec.Command(s.IsolatePath, commandArgs...)
+	cmd := exec.Command(s.IsolatePath, commandArgs...) //nolint:gosec // operator's isolate binary, args are the box id and fixed flags.
 	var stdout diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stdout
 	if err := cmd.Run(); err != nil {

@@ -33,7 +33,7 @@ func DownloadFile(ctx context.Context, filepath, url string) (err error) {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	out, err := os.Create(filepath)
+	out, err := os.Create(filepath) //nolint:gosec // callers pass fixed names (grader.zip in TaskDir, submission.zip in a fresh box before any student code runs).
 	if err != nil {
 		return err
 	}
