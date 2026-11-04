@@ -296,7 +296,7 @@ Known gaps if you use it:
 |---|---|---|
 | `test` | always | Builds the `test` image, starts it privileged, waits for `isolate.service`, runs `go vet -tags integration ./... && go test -tags integration ./...` inside it. |
 | `build` | not on pull requests | Builds the `runtime` image and pushes it to GHCR by digest, with no tag. |
-| `publish` | not on pull requests, after `test` and `build` | Tags the tested digest `sha-<commit>`, the branch name, and `latest` on `main`. |
+| `publish` | not on pull requests, after `test` and `build` | Tags the tested digest `sha-<commit>` (`sha-<commit>-prod` on `main`, so a commit pushed to both branches cannot move the other build's tag), the branch name, and `latest` on `main`. |
 | `deploy-staging` | push to `staging` or a manual run on `staging` | Connects over SSH through a Cloudflare tunnel and runs the staging deploy for `grader sha-<commit>@<digest>` (`Backend/DEPLOY.md` section 7.4). |
 
 There is no production deploy job. Production is deployed by hand with `deploy.sh` (`Backend/DEPLOY.md`
