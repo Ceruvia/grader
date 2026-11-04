@@ -120,7 +120,8 @@ jobs:
           flavor: |
             latest=${{ github.ref_name == 'main' }}
           tags: |
-            type=sha,format=long
+            type=sha,format=long,enable=${{ github.ref_name != 'main' }}
+            type=sha,format=long,suffix=-prod,enable=${{ github.ref_name == 'main' }}
             type=ref,event=branch
 
       # Image references must be lowercase, the repository name is not.
@@ -185,9 +186,12 @@ jobs:
           flavor: |
             latest=${{ github.ref_name == 'main' }}
           tags: |
-            type=sha,format=long
+            type=sha,format=long,enable=${{ github.ref_name != 'main' }}
+            type=sha,format=long,suffix=-prod,enable=${{ github.ref_name == 'main' }}
             type=ref,event=branch
 
+      # A commit pushed to staging and main at once is built twice (two digests). Plain sha-<40 hex> belongs to the
+      # staging build, main gets sha-<40 hex>-prod, so neither run moves the other's tag. Staging deploys stay plain.
       # Exactly one tag match or the job fails. After the copy, every tag must resolve to the built digest.
       - name: Tag the tested image and pick tag and digest
         id: tag
@@ -196,9 +200,9 @@ jobs:
           DIGEST: ${{ needs.build.outputs.digest }}
         run: |
           set -euo pipefail
-          tag=$(sed -nE 's/^.*:(sha-[0-9a-f]{40})$/\1/p' <<<"$TAGS")
-          if ! [[ $tag =~ ^sha-[0-9a-f]{40}$ ]]; then
-            echo "expected exactly one sha-<40 hex> tag, got: $TAGS" >&2
+          tag=$(sed -nE 's/^.*:(sha-[0-9a-f]{40}(-prod)?)$/\1/p' <<<"$TAGS")
+          if ! [[ $tag =~ ^sha-[0-9a-f]{40}(-prod)?$ ]]; then
+            echo "expected exactly one sha-<40 hex> tag (-prod on main), got: $TAGS" >&2
             exit 1
           fi
           if ! [[ $DIGEST =~ ^sha256:[0-9a-f]{64}$ ]]; then
