@@ -1,6 +1,7 @@
 package sandboxes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,12 +9,21 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/Ceruvia/grader/internal/helper"
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/helper/files"
 )
+
+// runs bounds every box run of this process. StopRuns ends it.
+var runs, stopRuns = context.WithCancel(context.Background())
+
+// StopRuns kills every running box and fails every later run. A stopping
+// grader calls it when its shutdown wait is over: the jobs still running are
+// released for redelivery, so their runs must end and never become verdicts.
+func StopRuns() { stopRuns() }
 
 type IsolateSandbox struct {
 	IsolatePath string
@@ -186,7 +196,9 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 
 	// No shell: the program is the operator's isolate binary, and every argument that can carry a
 	// submission filename follows `--run --`, so isolate runs it inside the box and never parses it.
-	cmd := exec.Command(command.Program, command.Args...) //nolint:gosec // see above.
+	cmd := exec.CommandContext(runs, command.Program, command.Args...) //nolint:gosec // see above.
+	// SIGTERM, not Go's default SIGKILL: isolate then kills the box itself. A killed keeper would leave it running.
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	var output diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err := cmd.Run()

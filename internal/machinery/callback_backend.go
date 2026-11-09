@@ -22,6 +22,9 @@ type callbackBackend struct {
 	// unanswered, when set, receives each signature whose callback got no final
 	// answer, so the Pub/Sub broker redelivers its message instead of acking it.
 	unanswered *sync.Map
+	// release closes when the stopping grader released its running jobs. Their
+	// results are dropped: a run the stop cut short must not become a verdict.
+	release <-chan struct{}
 }
 
 // callbackBody is the grade-callback request body, agreed with the Backend.
@@ -49,6 +52,15 @@ func (b *callbackBackend) SetStateFailure(signature *tasks.Signature, taskErr st
 
 func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	fields := log.Fields{"task": signature.Name, "uuid": signature.UUID, "state": body.State}
+	select {
+	case <-b.release:
+		if b.unanswered != nil {
+			b.unanswered.Store(signature, struct{}{})
+		}
+		log.WithFields(fields).Warn("Grader stopping, result dropped, job released for redelivery")
+		return
+	default:
+	}
 	if len(signature.Args) == 0 {
 		log.WithFields(fields).Error("Task has no submission id, callback skipped")
 		return

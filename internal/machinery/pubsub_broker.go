@@ -40,10 +40,6 @@ var (
 	rpcTimeout = 10 * time.Second
 	// settleRetry is the wait between failed ack or nack attempts.
 	settleRetry = time.Second
-	// shutdownGrace is how long a stopping grader waits for running jobs before
-	// it releases their messages for redelivery. It stays below Docker's
-	// default 10 s stop timeout so the release happens before the kill.
-	shutdownGrace = 5 * time.Second
 	// pubsubClientOptions are extra client options. Tests inject faults here.
 	pubsubClientOptions []option.ClientOption
 )
@@ -64,7 +60,7 @@ type pubsubBroker struct {
 	release      chan struct{}
 }
 
-func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, unanswered *sync.Map) (*pubsubBroker, error) {
+func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, unanswered *sync.Map, release chan struct{}) (*pubsubBroker, error) {
 	client, err := pubsub.NewClient(context.Background(), mq.ProjectID, pubsubClientOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("create Pub/Sub client: %w", err)
@@ -76,7 +72,7 @@ func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, u
 		topic:        mq.TopicName,
 		unanswered:   unanswered,
 		stopped:      make(chan struct{}),
-		release:      make(chan struct{}),
+		release:      release,
 	}, nil
 }
 
@@ -246,12 +242,7 @@ func (b *pubsubBroker) setDeadline(ackID string, d time.Duration) error {
 // still running then are nacked, so another grader takes them at once.
 func (b *pubsubBroker) StopConsuming() {
 	b.Broker.StopConsuming()
-	select {
-	case <-b.stopped:
-	case <-time.After(shutdownGrace):
-		close(b.release)
-		<-b.stopped
-	}
+	stopWithGrace(b.stopped, b.release)
 	if err := b.client.Close(); err != nil {
 		log.WithError(err).Warn("Close Pub/Sub client")
 	}

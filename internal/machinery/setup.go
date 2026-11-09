@@ -2,18 +2,39 @@ package machinery
 
 import (
 	"sync"
+	"time"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 	ceruviaTasks "github.com/Ceruvia/grader/internal/tasks"
 	"github.com/RichardKnop/machinery/v2"
 	nullbackend "github.com/RichardKnop/machinery/v2/backends/null"
-	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	brokersiface "github.com/RichardKnop/machinery/v2/brokers/iface"
 	"github.com/RichardKnop/machinery/v2/config"
 	eagerlock "github.com/RichardKnop/machinery/v2/locks/eager"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	log "github.com/sirupsen/logrus"
 )
+
+// shutdownGrace is how long a stopping grader waits for running jobs before
+// it releases their messages for redelivery. It stays below Docker's
+// default 10 s stop timeout so the release happens before the kill.
+var shutdownGrace = 5 * time.Second
+
+// stopWithGrace waits shutdownGrace for the consumer to report stopped, that
+// is for its running jobs to end. Then it releases the jobs still running:
+// closing release drops their results and returns their messages to the
+// broker, and StopRuns kills their boxes. release closes first, so a run the
+// kill cut short can never be reported.
+func stopWithGrace(stopped <-chan struct{}, release chan struct{}) {
+	select {
+	case <-stopped:
+	case <-time.After(shutdownGrace):
+		close(release)
+		sandboxes.StopRuns()
+		<-stopped
+	}
+}
 
 // GradingTasks are the task names the Backend sends.
 var GradingTasks = map[string]interface{}{
@@ -36,18 +57,20 @@ func NewServer(cfg *ceruviaConfig.ServerConfig, taskFuncs map[string]interface{}
 		},
 	}
 
+	// release closes when a stopping grader gives up its running jobs (see stopWithGrace).
+	release := make(chan struct{})
 	var broker brokersiface.Broker
 	var unanswered *sync.Map
 	if cfg.MQCfg.Broker == ceruviaConfig.BrokerPubSub {
 		unanswered = new(sync.Map)
 		var err error
-		if broker, err = newPubSubBroker(cnf, cfg.MQCfg, unanswered); err != nil {
+		if broker, err = newPubSubBroker(cnf, cfg.MQCfg, unanswered, release); err != nil {
 			return nil, err
 		}
 	} else {
-		broker = amqpbroker.New(cnf)
+		broker = newAMQPBroker(cnf, release)
 	}
-	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, unanswered: unanswered}
+	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, unanswered: unanswered, release: release}
 	server := machinery.NewServer(cnf, broker, backend, eagerlock.New())
 
 	if err := server.RegisterTasks(taskFuncs); err != nil {

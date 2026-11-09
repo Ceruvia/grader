@@ -10,6 +10,8 @@ WorkingDirectory=/opt/grader
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --cleanup
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --init
 ExecStart=/usr/local/bin/grader
+# SIGTERM only the grader, not its isolate keepers (see grader-docker.service).
+KillMode=mixed
 Restart=always
 RestartSec=5
 

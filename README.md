@@ -77,8 +77,12 @@ With `gcppubsub` delivery is at least once:
   worker slot pulls one message only when it is free. A failed ack or nack is retried every second,
   and the slot pulls nothing new until it lands or the message's lease has lapsed.
 - The grader keeps a 30 s lease on a running job and extends it every 10 s, for up to 1 hour.
-- On SIGTERM the grader stops pulling and waits 5 s for running jobs. Jobs still running then are
-  nacked so another grader takes them at once. A killed grader's jobs come back within 30 s.
+- A killed grader's jobs come back within 30 s.
+
+On SIGTERM (either broker) the grader stops pulling and waits 5 s for running jobs. Then it kills
+the runs still going, sends no result for their jobs and nacks them, so another grader takes them
+at once. The systemd units use `KillMode=mixed`, so the stop signal reaches only the grader, not its
+isolate processes: an isolate that gets the signal ends the box, and the run must not become a verdict.
 
 ### Limits
 

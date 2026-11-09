@@ -12,6 +12,9 @@ ExecStartPre=/bin/bash -c "until systemctl is-active isolate.service; do sleep 1
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --cleanup
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --init
 ExecStart=/usr/local/bin/grader
+# SIGTERM only the grader. Its isolate keepers share this cgroup, and a keeper that gets SIGTERM kills its
+# box and reports SG, which the grader would grade. The grader ends its runs itself after its shutdown wait.
+KillMode=mixed
 Restart=always
 RestartSec=5
 
