@@ -37,6 +37,8 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
 # python-is-python3 gives /usr/bin/python, which the Olympia makefiles call.
 # libcap2 and libsystemd0 (isolate runtime libs) come in with systemd. The apt lists
 # stay in the cache mount, so they are not in the image.
+# The --only-upgrade step clears grype --fail-on high (CVE-2026-109518 in apt). It is targeted so the
+# student toolchain (gcc, python3, ghc) does not move: patch bumps can change grading verdicts.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -44,6 +46,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       systemd systemd-sysv \
       ca-certificates build-essential zip unzip \
       python3 python-is-python3 ghc && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade \
+      apt libapt-pkg6.0 libpcre2-8-0 && \
     rm -f /lib/systemd/system/multi-user.target.wants/* \
       /etc/systemd/system/*.wants/* \
       /lib/systemd/system/local-fs.target.wants/* \
@@ -70,9 +74,9 @@ VOLUME [ "/sys/fs/cgroup" ]
 CMD ["/usr/local/bin/docker-init"]
 
 # ---------- Go toolchain ----------
-# One pinned image for the build and the test stage. Keep it on the latest 1.26 patch: govulncheck fails
+# One pinned image for the build and the test stage. Keep it on the latest 1.27 patch: govulncheck fails
 # on stdlib advisories, and Dependabot (docker) bumps the digest.
-FROM golang:1.26@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c AS gotoolchain
+FROM golang:1.27@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b AS gotoolchain
 
 # ---------- build ----------
 FROM gotoolchain AS build

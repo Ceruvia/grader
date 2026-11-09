@@ -196,7 +196,7 @@ The `Dockerfile` has five stages:
 |---|---|
 | `isolate` | Builds isolate v2.1. Only the installed files leave this stage. |
 | `base` | Ubuntu 22.04, systemd, isolate, `build-essential`, `python3`, `python-is-python3`, `ghc`, `zip`, `unzip`, and the systemd units. |
-| `build` | `golang:1.26`, builds `/out/grader` from `./cmd/server`. |
+| `build` | `golang:1.27`, builds `/out/grader` from `./cmd/server`. |
 | `test` | `base` plus the Go toolchain, with the whole source in `/src`. |
 | `runtime` | The default target. `base` plus the grader binary, no Go toolchain. |
 
