@@ -70,7 +70,7 @@ VOLUME [ "/sys/fs/cgroup" ]
 CMD ["/usr/local/bin/docker-init"]
 
 # ---------- Go toolchain ----------
-# One pinned image for the build and the test stage. Keep it on the latest 1.26 patch: govulncheck fails
+# One pinned image for the build and the test stage. Keep it on the latest 1.27 patch: govulncheck fails
 # on stdlib advisories, and Dependabot (docker) bumps the digest.
 FROM golang:1.27@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b AS gotoolchain
 
