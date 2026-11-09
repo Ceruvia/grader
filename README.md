@@ -66,13 +66,13 @@ When the grader itself fails (download, unzip, sandbox), the task returns an err
 waits of 2, 4 and 8 s. It retries on network errors, 5xx and 429, and stops on any other non-2xx
 status, which counts as the backend's final answer.
 
-With `amqp` the message is acked after the callback either way. If every attempt fails, the submission
-stays pending and the backend sweeper marks it stuck.
+With either broker delivery is at least once. The message is acked only after a 2xx or a final 4xx.
+If every attempt fails, it is nacked (requeued on `amqp`), so the job is graded again (by any
+grader). The backend ignores a second result for a final row. With `amqp` a killed grader's jobs
+come back as soon as RabbitMQ sees its connection close.
 
-With `gcppubsub` delivery is at least once:
+With `gcppubsub`:
 
-- The message is acked only after a 2xx or a final 4xx. If every attempt fails, it is nacked, so
-  the job is graded again (by any grader). The backend ignores a second result for a final row.
 - A grader holds at most `GRADER_WORKER_COUNT` unacked messages, so graders share the load. Each
   worker slot pulls one message only when it is free. A failed ack or nack is retried every second,
   and the slot pulls nothing new until it lands or the message's lease has lapsed.

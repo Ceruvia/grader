@@ -116,13 +116,19 @@ func newSubscription(t *testing.T, client *pubsub.Client, ackDeadlineSeconds int
 // startGrader launches a grader with one task and returns its stop function.
 func startGrader(t *testing.T, sub string, workers int, task string, fn any, callbackURL string) func() {
 	t.Helper()
+	return launchGrader(t, &ceruviaConfig.MessageQueueConfig{
+		Broker: ceruviaConfig.BrokerPubSub, ProjectID: testProject, SubscriptionName: sub,
+	}, workers, task, fn, callbackURL)
+}
+
+// launchGrader launches a grader on mq with one task and returns its stop function.
+func launchGrader(t *testing.T, mq *ceruviaConfig.MessageQueueConfig, workers int, task string, fn any, callbackURL string) func() {
+	t.Helper()
 	cfg := &ceruviaConfig.ServerConfig{
 		WorkerCount:             workers,
 		BackendAPIToken:         "token",
 		BackendCallbackEndpoint: callbackURL + "/submissions/{submission_id}",
-		MQCfg: &ceruviaConfig.MessageQueueConfig{
-			Broker: ceruviaConfig.BrokerPubSub, ProjectID: testProject, SubscriptionName: sub,
-		},
+		MQCfg:                   mq,
 	}
 	server, err := NewServer(cfg, map[string]any{task: fn})
 	if err != nil {
@@ -317,17 +323,20 @@ func runDyingGrader(sub string) {
 
 // A message is acked only after the Backend gave a final answer. A 5xx after
 // every retry, or a job still running at shutdown, releases it for redelivery.
+// The stop waits for a released job to end, as its runs are being killed.
 func TestPubSubAcksOnlyAfterFinalAnswer(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		status       int
 		blocks       bool
 		wantReleased bool
+		runs         time.Duration // a job that ends on its own after the release
 	}{
-		{"2xx acks", http.StatusOK, false, false},
-		{"4xx acks", http.StatusNotFound, false, false},
-		{"5xx releases", http.StatusServiceUnavailable, false, true},
-		{"running job at shutdown releases", http.StatusOK, true, true},
+		{"2xx acks", http.StatusOK, false, false, 0},
+		{"4xx acks", http.StatusNotFound, false, false, 0},
+		{"5xx releases", http.StatusServiceUnavailable, false, true, 0},
+		{"running job at shutdown releases", http.StatusOK, true, true, 0},
+		{"stop waits for the released job", http.StatusOK, false, true, 3 * shutdownGrace / 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client := requireEmulator(t)
@@ -336,6 +345,7 @@ func TestPubSubAcksOnlyAfterFinalAnswer(t *testing.T) {
 			started := make(chan struct{}, 1)
 			gate := make(chan struct{})
 			t.Cleanup(func() { close(gate) })
+			var ended atomic.Bool
 			stop := startGrader(t, sub, 1, "blackbox", func(string) (string, error) {
 				select {
 				case started <- struct{}{}:
@@ -344,15 +354,20 @@ func TestPubSubAcksOnlyAfterFinalAnswer(t *testing.T) {
 				if tc.blocks {
 					<-gate
 				}
+				time.Sleep(tc.runs)
+				ended.Store(true)
 				return "{}", nil
 			}, callbackURL)
 
 			taskID := publish(t, client, topic, "blackbox")
 			receive(t, started, "job start")
-			if !tc.blocks {
+			if !tc.blocks && tc.runs == 0 {
 				receive(t, callbacks, "callback")
 			}
 			stop()
+			if tc.runs > 0 && !ended.Load() {
+				t.Fatal("stop returned while the released job still ran")
+			}
 
 			if tc.wantReleased {
 				if got := pollPending(t, client, sub, time.Now().Add(waitLimit)); len(got) != 1 || got[0] != taskID {

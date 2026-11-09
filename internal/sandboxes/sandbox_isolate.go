@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Ceruvia/grader/internal/helper"
 	"github.com/Ceruvia/grader/internal/helper/command"
@@ -17,13 +18,14 @@ import (
 	"github.com/Ceruvia/grader/internal/helper/files"
 )
 
-// runs bounds every box run of this process. StopRuns ends it.
-var runs, stopRuns = context.WithCancel(context.Background())
+// runs bounds every box run of this process.
+var runs = context.Background()
 
-// StopRuns kills every running box and fails every later run. A stopping
-// grader calls it when its shutdown wait is over: the jobs still running are
-// released for redelivery, so their runs must end and never become verdicts.
-func StopRuns() { stopRuns() }
+// BoundRuns makes the end of ctx kill every running box and fail every later
+// run. A grader binds it to the release of its jobs at start, before any run:
+// a stop that releases the jobs ends their runs with the same cancel, so a run
+// it killed is always seen as released and never becomes a verdict.
+func BoundRuns(ctx context.Context) { runs = ctx }
 
 type IsolateSandbox struct {
 	IsolatePath string
@@ -199,6 +201,8 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 	cmd := exec.CommandContext(runs, command.Program, command.Args...) //nolint:gosec // see above.
 	// SIGTERM, not Go's default SIGKILL: isolate then kills the box itself. A killed keeper would leave it running.
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	// A keeper that ignores the SIGTERM gets SIGKILL, so a released run never hangs.
+	cmd.WaitDelay = 2 * time.Second
 	var output diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err := cmd.Run()

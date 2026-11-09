@@ -52,27 +52,23 @@ var (
 // Backend gave its final answer to the callback, and nacked otherwise.
 type pubsubBroker struct {
 	common.Broker
+	*stopState
 	client       *pubsub.Client
 	subscription string
 	topic        string
-	unanswered   *sync.Map
-	stopped      chan struct{}
-	release      chan struct{}
 }
 
-func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, unanswered *sync.Map, release chan struct{}) (*pubsubBroker, error) {
+func newPubSubBroker(cnf *config.Config, mq *ceruviaConfig.MessageQueueConfig, stop *stopState) (*pubsubBroker, error) {
 	client, err := pubsub.NewClient(context.Background(), mq.ProjectID, pubsubClientOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("create Pub/Sub client: %w", err)
 	}
 	return &pubsubBroker{
 		Broker:       common.NewBroker(cnf),
+		stopState:    stop,
 		client:       client,
 		subscription: fmt.Sprintf("projects/%s/subscriptions/%s", mq.ProjectID, mq.SubscriptionName),
 		topic:        mq.TopicName,
-		unanswered:   unanswered,
-		stopped:      make(chan struct{}),
-		release:      release,
 	}, nil
 }
 
@@ -106,10 +102,10 @@ func (b *pubsubBroker) StartConsuming(consumerTag string, concurrency int, p ifa
 	}
 	wg.Wait()
 
-	if pullErr != nil && b.GetRetry() {
+	if pullErr != nil && !b.stopping.Load() {
 		b.GetRetryFunc()(b.GetRetryStopChan())
 	}
-	if b.GetRetry() {
+	if !b.stopping.Load() {
 		return true, fmt.Errorf("pull from %s: %w", b.subscription, pullErr)
 	}
 	close(b.stopped)
@@ -174,9 +170,22 @@ func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor
 		case ok := <-answered:
 			b.settle(fields, m.AckId, leasedUntil(), ok)
 			return
-		case <-b.release:
+		case <-b.released.Done():
+			select {
+			case ok := <-answered: // ended just before the release
+				b.settle(fields, m.AckId, leasedUntil(), ok)
+				return
+			default:
+			}
 			log.WithFields(fields).Warn("Grader stopping, running job released for redelivery")
 			b.settle(fields, m.AckId, leasedUntil(), false)
+			// The released job's runs are being killed. Wait for them to end, so the
+			// grader does not exit with live boxes or return a sandbox to a closed pool.
+			select {
+			case <-answered:
+			case <-time.After(shutdownGrace):
+				log.WithFields(fields).Error("Released job did not end within the grace, exiting anyway")
+			}
 			return
 		case <-ticker.C:
 			if time.Since(started) < maxJobDuration {
@@ -207,7 +216,7 @@ func (b *pubsubBroker) settle(fields log.Fields, ackID string, leasedUntil time.
 		log.WithFields(fields).WithError(err).Warnf("The %s failed, retrying", what)
 		select {
 		case <-time.After(settleRetry):
-		case <-b.release:
+		case <-b.released.Done():
 			if ack {
 				_ = b.setDeadline(ackID, 0)
 			}
@@ -241,8 +250,9 @@ func (b *pubsubBroker) setDeadline(ackID string, d time.Duration) error {
 // StopConsuming stops pulling and waits shutdownGrace for running jobs. Jobs
 // still running then are nacked, so another grader takes them at once.
 func (b *pubsubBroker) StopConsuming() {
+	b.stopping.Store(true)
 	b.Broker.StopConsuming()
-	stopWithGrace(b.stopped, b.release)
+	b.waitStopped()
 	if err := b.client.Close(); err != nil {
 		log.WithError(err).Warn("Close Pub/Sub client")
 	}
@@ -265,8 +275,7 @@ func (b *pubsubBroker) consumeOne(msg *pubsubpb.PubsubMessage, p iface.TaskProce
 	if err := p.Process(signature); err != nil {
 		log.WithField("uuid", signature.UUID).WithError(err).Warn("Task processing error")
 	}
-	_, unanswered := b.unanswered.LoadAndDelete(signature)
-	return !unanswered
+	return b.answered(signature)
 }
 
 // Publish sends a signature to PUBSUB_TOPIC_NAME. Only cmd/send publishes.

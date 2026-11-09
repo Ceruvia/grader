@@ -1,11 +1,9 @@
 package machinery
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"strings"
-	"sync"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	backendsiface "github.com/RichardKnop/machinery/v2/backends/iface"
@@ -19,12 +17,10 @@ import (
 type callbackBackend struct {
 	backendsiface.Backend
 	cfg *ceruviaConfig.ServerConfig
-	// unanswered, when set, receives each signature whose callback got no final
-	// answer, so the Pub/Sub broker redelivers its message instead of acking it.
-	unanswered *sync.Map
-	// release closes when the stopping grader released its running jobs. Their
-	// results are dropped: a run the stop cut short must not become a verdict.
-	release <-chan struct{}
+	// stop marks each job whose callback got no final answer unanswered, so its
+	// broker redelivers it. Once the stopping grader released its running jobs,
+	// their results are dropped: a run the stop cut short must not become a verdict.
+	stop *stopState
 }
 
 // callbackBody is the grade-callback request body, agreed with the Backend.
@@ -52,14 +48,10 @@ func (b *callbackBackend) SetStateFailure(signature *tasks.Signature, taskErr st
 
 func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	fields := log.Fields{"task": signature.Name, "uuid": signature.UUID, "state": body.State}
-	select {
-	case <-b.release:
-		if b.unanswered != nil {
-			b.unanswered.Store(signature, struct{}{})
-		}
+	if b.stop.released.Err() != nil {
+		b.stop.unanswered.Store(signature, struct{}{})
 		log.WithFields(fields).Warn("Grader stopping, result dropped, job released for redelivery")
 		return
-	default:
 	}
 	if len(signature.Args) == 0 {
 		log.WithFields(fields).Error("Task has no submission id, callback skipped")
@@ -84,17 +76,15 @@ func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	}
 
 	callbackUrl := strings.ReplaceAll(b.cfg.BackendCallbackEndpoint, "{submission_id}", submissionId)
-	err = postCallback(context.Background(), callbackClient, callbackUrl, b.cfg.BackendAPIToken, payload, callbackBackoff)
+	// A release cancels a callback in flight, so a stop never waits on its retries.
+	err = postCallback(b.stop.released, callbackClient, callbackUrl, b.cfg.BackendAPIToken, payload, callbackBackoff)
 	switch {
 	case err == nil:
 		log.WithFields(fields).Info("Finished task")
 	case errors.Is(err, errCallbackRejected):
 		log.WithFields(fields).WithError(err).Error("Backend rejected the result")
-	case b.unanswered != nil:
-		b.unanswered.Store(signature, struct{}{})
-		log.WithFields(fields).WithError(err).Error("Callback failed, job released for redelivery")
 	default:
-		// The backend sweeper marks a stuck submission.
-		log.WithFields(fields).WithError(err).Error("Callback failed, submission left pending")
+		b.stop.unanswered.Store(signature, struct{}{})
+		log.WithFields(fields).WithError(err).Error("Callback failed, job released for redelivery")
 	}
 }

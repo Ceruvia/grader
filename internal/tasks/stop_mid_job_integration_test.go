@@ -43,8 +43,8 @@ const (
 	testProject   = "grader-test"
 )
 
-// slowProgram doubles its input after 6 s of CPU time: longer than the 5 s the
-// grader waits for running jobs at shutdown (README "Callback").
+// slowProgram doubles its input after 12 s of CPU time: far longer than the 5 s
+// the grader waits for running jobs at shutdown (README "Callback").
 const slowProgram = `#include <stdio.h>
 #include <time.h>
 int main(void) {
@@ -52,7 +52,7 @@ int main(void) {
     if (scanf("%d", &x) != 1) return 1;
     clock_t start = clock();
     volatile unsigned long n = 0;
-    while ((double)(clock() - start) / CLOCKS_PER_SEC < 6.0) n++;
+    while ((double)(clock() - start) / CLOCKS_PER_SEC < 12.0) n++;
     printf("%d\n", x * 2);
     return 0;
 }
@@ -63,9 +63,9 @@ int main(void) { volatile int *p = 0; *p = 1; printf("%d\n", *p); return 0; }
 `
 
 // A grader stopped (systemctl stop, as docker stop does) while a test case runs
-// must not report that case. It waits 5 s for the job, then releases it for
-// redelivery without a result, and the next grader grades the program AC.
-// Staging, 9 Nov 2026: the case was stored as RE and the message acked.
+// must not report that case. It waits 5 s for the job, then kills the run and
+// releases the job for redelivery without a result, and the next grader grades
+// the program AC. Staging, 9 Nov 2026: the case was stored as RE and the message acked.
 func TestStopMidJobReleasesTheJob(t *testing.T) {
 	if os.Getenv(graderChildEnv) != "" {
 		runGrader(t)
@@ -79,7 +79,12 @@ func TestStopMidJobReleasesTheJob(t *testing.T) {
 			unit := startGraderUnit(t, broker.env, url)
 			taskID := broker.publish(t, gradeSignature(t, files, "slow.zip"))
 			waitForRunOf(t, "-i1.in")
+			stopStart := time.Now()
 			stopUnit(t, unit)
+			// The 5 s wait, then the kill. A stop that let the run go on would take 10 s or more.
+			if took := time.Since(stopStart); took > 8*time.Second {
+				t.Fatalf("stop took %s: the released run was not killed", took)
+			}
 
 			select {
 			case body := <-callbacks:

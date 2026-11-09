@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	"github.com/RichardKnop/machinery/v2/brokers/iface"
@@ -20,44 +21,54 @@ import (
 // nacks the ones it released back to the queue, so another grader takes them.
 type amqpBroker struct {
 	*amqpbroker.Broker
-	release chan struct{}
-	stopped chan struct{}
+	*stopState
 }
 
-func newAMQPBroker(cnf *config.Config, release chan struct{}) *amqpBroker {
-	return &amqpBroker{Broker: amqpbroker.New(cnf).(*amqpbroker.Broker), release: release, stopped: make(chan struct{})}
+func newAMQPBroker(cnf *config.Config, stop *stopState) *amqpBroker {
+	return &amqpBroker{Broker: amqpbroker.New(cnf).(*amqpbroker.Broker), stopState: stop}
 }
 
 // StartConsuming runs up to concurrency jobs at once until StopConsuming, or
-// until the connection fails. Machinery then calls it again.
+// until the connection fails. Machinery then calls it again. Once
+// StopConsuming has begun, Machinery calls it no more, so stopped closes once.
 func (b *amqpBroker) StartConsuming(consumerTag string, concurrency int, p iface.TaskProcessor) (bool, error) {
 	b.Broker.Broker.StartConsuming(consumerTag, concurrency, p)
+	err := b.consume(consumerTag, concurrency, p)
+	if !b.stopping.Load() {
+		return true, err
+	}
+	close(b.stopped)
+	return false, nil
+}
+
+// consume returns once the connection fails, or once the stop is done and the
+// channel closed, which requeues every delivery still unacked.
+func (b *amqpBroker) consume(consumerTag string, concurrency int, p iface.TaskProcessor) error {
 	cnf := b.GetConfig()
 	conn, channel, queue, _, closed, err := b.Connect(cnf.Broker, cnf.MultipleBrokerSeparator, cnf.TLSConfig,
 		cnf.AMQP.Exchange, cnf.AMQP.ExchangeType, cnf.DefaultQueue, true, false, cnf.AMQP.BindingKey,
 		nil, amqp.Table(cnf.AMQP.QueueDeclareArgs), amqp.Table(cnf.AMQP.QueueBindingArgs))
 	if err != nil {
 		b.GetRetryFunc()(b.GetRetryStopChan())
-		return b.end(err)
+		return err
 	}
-	// Closing the channel requeues every delivery still unacked.
 	defer func() { _ = b.Close(channel, conn) }()
 	if err := channel.Qos(concurrency, 0, false); err != nil {
-		return b.end(fmt.Errorf("channel qos: %w", err))
+		return fmt.Errorf("channel qos: %w", err)
 	}
 	deliveries, err := channel.Consume(queue.Name, consumerTag, false, false, false, false, nil)
 	if err != nil {
-		return b.end(fmt.Errorf("consume %s: %w", queue.Name, err))
+		return fmt.Errorf("consume %s: %w", queue.Name, err)
 	}
 
 	var jobs sync.WaitGroup
 	for {
 		select {
 		case amqpErr := <-closed:
-			return b.end(fmt.Errorf("connection closed: %v", amqpErr))
+			return fmt.Errorf("connection closed: %v", amqpErr)
 		case d, ok := <-deliveries:
 			if !ok {
-				return b.end(fmt.Errorf("delivery channel of %s closed", queue.Name))
+				return fmt.Errorf("delivery channel of %s closed", queue.Name)
 			}
 			jobs.Add(1)
 			go func() {
@@ -66,31 +77,33 @@ func (b *amqpBroker) StartConsuming(consumerTag string, concurrency int, p iface
 			}()
 		case <-b.GetStopChan():
 			_ = channel.Cancel(consumerTag, false) // stop pulling, the running jobs go on
-			jobs.Wait()
-			return b.end(nil)
+			ended := make(chan struct{})
+			go func() { jobs.Wait(); close(ended) }()
+			select {
+			case <-ended:
+			case <-b.released.Done():
+				// The released jobs' runs are being killed: wait for them, but not forever.
+				select {
+				case <-ended:
+				case <-time.After(shutdownGrace):
+					log.Error("Released jobs did not end within the grace, exiting anyway")
+				}
+			}
+			return nil
 		}
 	}
-}
-
-// end returns from StartConsuming. Once StopConsuming has turned retry off,
-// Machinery calls StartConsuming no more, so stopped closes exactly once.
-func (b *amqpBroker) end(err error) (bool, error) {
-	if b.GetRetry() {
-		return true, err
-	}
-	close(b.stopped)
-	return false, nil
 }
 
 // StopConsuming stops pulling and waits shutdownGrace for running jobs. Jobs
 // still running then are nacked, so another grader takes them at once.
 func (b *amqpBroker) StopConsuming() {
+	b.stopping.Store(true)
 	b.Broker.Broker.StopConsuming()
-	stopWithGrace(b.stopped, b.release)
+	b.waitStopped()
 }
 
-// consumeOne runs one job, then acks its message, or nacks it back to the
-// queue if the grader released the job meanwhile. Undecodable and unknown
+// consumeOne runs one job, then acks its message once the Backend gave its
+// final answer, and otherwise nacks it back to the queue. Undecodable and unknown
 // tasks are handled as Machinery's AMQP broker does.
 func (b *amqpBroker) consumeOne(d amqp.Delivery, p iface.TaskProcessor) {
 	signature := new(tasks.Signature)
@@ -110,11 +123,10 @@ func (b *amqpBroker) consumeOne(d amqp.Delivery, p iface.TaskProcessor) {
 		log.WithField("uuid", signature.UUID).WithError(err).Warn("Task processing error")
 	}
 	var err error
-	select {
-	case <-b.release:
-		err = d.Nack(false, true)
-	default:
+	if b.answered(signature) {
 		err = d.Ack(false)
+	} else {
+		err = d.Nack(false, true)
 	}
 	if err != nil {
 		// The broker requeues an unanswered delivery when the channel closes.

@@ -1,7 +1,9 @@
 package machinery
 
 import (
+	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
@@ -21,18 +23,42 @@ import (
 // default 10 s stop timeout so the release happens before the kill.
 var shutdownGrace = 5 * time.Second
 
-// stopWithGrace waits shutdownGrace for the consumer to report stopped, that
+// stopState is the shutdown state a broker shares with the callback backend.
+type stopState struct {
+	// released ends when the stopping grader gives up its running jobs: their
+	// results are dropped and their messages go back to the broker.
+	released context.Context
+	release  context.CancelFunc
+	// unanswered holds each signature whose callback got no final answer, so
+	// its message is nacked for redelivery instead of acked.
+	unanswered sync.Map
+	// stopping replaces Machinery's retry flag, which StopConsuming writes unsynchronized.
+	stopping atomic.Bool
+	// stopped closes when StartConsuming returned for good.
+	stopped chan struct{}
+}
+
+func newStopState() *stopState {
+	released, release := context.WithCancel(context.Background())
+	return &stopState{released: released, release: release, stopped: make(chan struct{})}
+}
+
+// answered reports whether the callback of signature got a final answer.
+func (s *stopState) answered(signature *tasks.Signature) bool {
+	_, unanswered := s.unanswered.LoadAndDelete(signature)
+	return !unanswered
+}
+
+// waitStopped waits shutdownGrace for the consumer to report stopped, that
 // is for its running jobs to end. Then it releases the jobs still running:
-// closing release drops their results and returns their messages to the
-// broker, and StopRuns kills their boxes. release closes first, so a run the
-// kill cut short can never be reported.
-func stopWithGrace(stopped <-chan struct{}, release chan struct{}) {
+// their results are dropped, their messages go back to the broker and their
+// boxes are killed (sandboxes.BoundRuns).
+func (s *stopState) waitStopped() {
 	select {
-	case <-stopped:
+	case <-s.stopped:
 	case <-time.After(shutdownGrace):
-		close(release)
-		sandboxes.StopRuns()
-		<-stopped
+		s.release()
+		<-s.stopped
 	}
 }
 
@@ -57,20 +83,18 @@ func NewServer(cfg *ceruviaConfig.ServerConfig, taskFuncs map[string]interface{}
 		},
 	}
 
-	// release closes when a stopping grader gives up its running jobs (see stopWithGrace).
-	release := make(chan struct{})
+	stop := newStopState()
+	sandboxes.BoundRuns(stop.released)
 	var broker brokersiface.Broker
-	var unanswered *sync.Map
 	if cfg.MQCfg.Broker == ceruviaConfig.BrokerPubSub {
-		unanswered = new(sync.Map)
 		var err error
-		if broker, err = newPubSubBroker(cnf, cfg.MQCfg, unanswered, release); err != nil {
+		if broker, err = newPubSubBroker(cnf, cfg.MQCfg, stop); err != nil {
 			return nil, err
 		}
 	} else {
-		broker = newAMQPBroker(cnf, release)
+		broker = newAMQPBroker(cnf, stop)
 	}
-	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, unanswered: unanswered, release: release}
+	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, stop: stop}
 	server := machinery.NewServer(cnf, broker, backend, eagerlock.New())
 
 	if err := server.RegisterTasks(taskFuncs); err != nil {
