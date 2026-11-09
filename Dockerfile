@@ -37,6 +37,8 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
 # python-is-python3 gives /usr/bin/python, which the Olympia makefiles call.
 # libcap2 and libsystemd0 (isolate runtime libs) come in with systemd. The apt lists
 # stay in the cache mount, so they are not in the image.
+# The --only-upgrade step clears grype --fail-on high (CVE-2026-109518 in apt). It is targeted so the
+# student toolchain (gcc, python3, ghc) does not move: patch bumps can change grading verdicts.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -44,6 +46,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       systemd systemd-sysv \
       ca-certificates build-essential zip unzip \
       python3 python-is-python3 ghc && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade \
+      apt libapt-pkg6.0 libpcre2-8-0 && \
     rm -f /lib/systemd/system/multi-user.target.wants/* \
       /etc/systemd/system/*.wants/* \
       /lib/systemd/system/local-fs.target.wants/* \
