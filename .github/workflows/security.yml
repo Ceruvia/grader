@@ -15,7 +15,7 @@ permissions:
 
 env:
   # Pinned, bump together with a review of the new release. sha256 is of the linux amd64 archive.
-  GOVULNCHECK_VERSION: v1.1.4
+  GOVULNCHECK_VERSION: v1.9.0
   GOLANGCI_LINT_VERSION: 2.15.0
   GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
   GITLEAKS_VERSION: 8.30.1
