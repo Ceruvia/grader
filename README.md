@@ -5,12 +5,13 @@ It is a Go worker. It has no HTTP API and no database of its own.
 
 ## Release status
 
-This README describes the `refactor/production-ready` branch. That branch is not merged to `dev` or
-`main`. The pull request to `dev` (grader #10) is open.
+The work of the `refactor/production-ready` branch was merged to `dev` on 3 Nov 2026 (grader #10).
+`dev`, `staging` and `main` carry the same content.
 
-- Production (the `main` VM) runs older images and has no broker and no grader. Production does not
-  grade submissions today.
-- Staging on the same VM runs this branch, with a broker and a grader.
+- Production grades through GCP Pub/Sub with one grader on the VM `grader1`, since the cutover of
+  3 Nov 2026. The grader is not on the `main` VM.
+- Staging runs the same code on the `main` VM, with RabbitMQ, only inside a test window. The one
+  grader of `grader1` serves staging during that window.
 
 Deployment of the whole stack (backend, frontend, broker, grader) is described in `Backend/DEPLOY.md`
 in the Backend repository. This repository holds only the grader code, its image and its CI.
@@ -295,7 +296,7 @@ Known gaps if you use it:
 |---|---|---|
 | `test` | always | Builds the `test` image, starts it privileged, waits for `isolate.service`, runs `go vet -tags integration ./... && go test -tags integration ./...` inside it. |
 | `build` | not on pull requests | Builds the `runtime` image and pushes it to GHCR by digest, with no tag. |
-| `publish` | not on pull requests, after `test` and `build` | Tags the tested digest `sha-<commit>`, the branch name, and `latest` on `main`. |
+| `publish` | not on pull requests, after `test` and `build` | Tags the tested digest `sha-<commit>` (`sha-<commit>-prod` on `main`, so a commit pushed to both branches cannot move the other build's tag), the branch name, and `latest` on `main`. |
 | `deploy-staging` | push to `staging` or a manual run on `staging` | Connects over SSH through a Cloudflare tunnel and runs the staging deploy for `grader sha-<commit>@<digest>` (`Backend/DEPLOY.md` section 7.4). |
 
 There is no production deploy job. Production is deployed by hand with `deploy.sh` (`Backend/DEPLOY.md`
