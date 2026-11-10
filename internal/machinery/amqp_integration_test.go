@@ -22,10 +22,7 @@ import (
 // to the queue. The stop waits for a released job to end, and cancels a
 // callback still retrying.
 func TestAMQPAcksOnlyAfterFinalAnswer(t *testing.T) {
-	url := os.Getenv("GRADER_TEST_AMQP_URL")
-	if url == "" {
-		t.Skip("GRADER_TEST_AMQP_URL not set")
-	}
+	url := requireAMQP(t)
 	for _, tc := range []struct {
 		name         string
 		status       int
@@ -38,7 +35,7 @@ func TestAMQPAcksOnlyAfterFinalAnswer(t *testing.T) {
 		{"4xx acks", http.StatusNotFound, false, false, 0, 0},
 		{"5xx releases", http.StatusServiceUnavailable, false, true, 0, 0},
 		{"running job at shutdown releases", http.StatusOK, true, true, 0, 0},
-		{"stop waits for the released job", http.StatusOK, false, true, 3 * shutdownGrace / 2, 0},
+		{"stop waits for the released job", http.StatusOK, false, true, 3 * shutdownGrace, 0},
 		{"stop cancels a retrying callback", http.StatusServiceUnavailable, false, true, 0, time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -68,15 +65,7 @@ func TestAMQPAcksOnlyAfterFinalAnswer(t *testing.T) {
 				return "{}", nil
 			}, callbackURL)
 
-			sig, err := tasks.NewSignature("blackbox", []tasks.Arg{{Type: "string", Value: "sub-1"}})
-			if err != nil {
-				t.Fatal(err)
-			}
-			body, _ := json.Marshal(sig)
-			if err := ch.PublishWithContext(context.Background(), "", queue, false, false,
-				amqp.Publishing{ContentType: "application/json", Body: body}); err != nil {
-				t.Fatal(err)
-			}
+			amqpPublish(t, ch, queue, "sub-1")
 			receive(t, started, "job start")
 			if !tc.blocks && tc.runs == 0 {
 				receive(t, callbacks, "callback")
@@ -102,6 +91,31 @@ func TestAMQPAcksOnlyAfterFinalAnswer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// amqpPublish publishes a blackbox task for submission and returns its UUID.
+func amqpPublish(t *testing.T, ch *amqp.Channel, queue, submission string) string {
+	t.Helper()
+	sig, err := tasks.NewSignature("blackbox", []tasks.Arg{{Type: "string", Value: submission}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(sig)
+	if err := ch.PublishWithContext(context.Background(), "", queue, false, false,
+		amqp.Publishing{ContentType: "application/json", Body: body}); err != nil {
+		t.Fatal(err)
+	}
+	return sig.UUID
+}
+
+// requireAMQP returns the test broker URL, or skips without one.
+func requireAMQP(t *testing.T) string {
+	t.Helper()
+	url := os.Getenv("GRADER_TEST_AMQP_URL")
+	if url == "" {
+		t.Skip("GRADER_TEST_AMQP_URL not set")
+	}
+	return url
 }
 
 // newQueue declares a fresh durable queue, as Machinery declares it.

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	backendsiface "github.com/RichardKnop/machinery/v2/backends/iface"
@@ -21,7 +23,16 @@ type callbackBackend struct {
 	// broker redelivers it. Once the stopping grader released its running jobs,
 	// their results are dropped: a run the stop cut short must not become a verdict.
 	stop *stopState
+	// failures counts the failed callbacks of each job by signature UUID, so a
+	// job whose callback always fails is not redelivered forever. On AMQP a
+	// requeued message keeps its place, so it would starve every job behind it.
+	// shortcut: a count that never reaches the cap stays in memory until restart, fine for one exam day.
+	failures sync.Map
 }
+
+// maxCallbackFailures is how many failed callbacks a job gets before it is
+// acked anyway and its submission left pending, which the Backend marks stuck.
+const maxCallbackFailures = 5
 
 // callbackBody is the grade-callback request body, agreed with the Backend.
 type callbackBody struct {
@@ -80,10 +91,21 @@ func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	err = postCallback(b.stop.released, callbackClient, callbackUrl, b.cfg.BackendAPIToken, payload, callbackBackoff)
 	switch {
 	case err == nil:
+		b.failures.Delete(signature.UUID)
 		log.WithFields(fields).Info("Finished task")
 	case errors.Is(err, errCallbackRejected):
+		b.failures.Delete(signature.UUID)
 		log.WithFields(fields).WithError(err).Error("Backend rejected the result")
+	case b.stop.released.Err() != nil:
+		b.stop.unanswered.Store(signature, struct{}{})
+		log.WithFields(fields).WithError(err).Warn("Grader stopping, callback cancelled, job released for redelivery")
 	default:
+		count, _ := b.failures.LoadOrStore(signature.UUID, new(atomic.Int32))
+		if n := count.(*atomic.Int32).Add(1); n >= maxCallbackFailures {
+			b.failures.Delete(signature.UUID)
+			log.WithFields(fields).WithError(err).Errorf("Callback failed %d times, job dropped, submission left pending", n)
+			return
+		}
 		b.stop.unanswered.Store(signature, struct{}{})
 		log.WithFields(fields).WithError(err).Error("Callback failed, job released for redelivery")
 	}

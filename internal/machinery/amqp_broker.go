@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"time"
 
 	amqpbroker "github.com/RichardKnop/machinery/v2/brokers/amqp"
 	"github.com/RichardKnop/machinery/v2/brokers/iface"
@@ -18,7 +17,8 @@ import (
 // amqpBroker consumes like Machinery's AMQP broker, which it embeds for the
 // connection and Publish. Machinery acks every job it ran and waits for running
 // jobs without a bound. This broker gives running jobs shutdownGrace, then
-// nacks the ones it released back to the queue, so another grader takes them.
+// nacks the ones it released back to the queue, so another grader takes them,
+// and waits for them at most releaseGrace.
 type amqpBroker struct {
 	*amqpbroker.Broker
 	*stopState
@@ -85,7 +85,7 @@ func (b *amqpBroker) consume(consumerTag string, concurrency int, p iface.TaskPr
 				// The released jobs' runs are being killed: wait for them, but not forever.
 				select {
 				case <-ended:
-				case <-time.After(shutdownGrace):
+				case <-b.releaseOver.Done():
 					log.Error("Released jobs did not end within the grace, exiting anyway")
 				}
 			}

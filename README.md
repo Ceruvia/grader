@@ -68,8 +68,10 @@ status, which counts as the backend's final answer.
 
 With either broker delivery is at least once. The message is acked only after a 2xx or a final 4xx.
 If every attempt fails, it is nacked (requeued on `amqp`), so the job is graded again (by any
-grader). The backend ignores a second result for a final row. With `amqp` a killed grader's jobs
-come back as soon as RabbitMQ sees its connection close.
+grader). After 5 such failures on one grader the job is acked anyway and its submission stays
+pending, so a job the backend never accepts cannot block the queue. The backend ignores a second
+result for a final row. With `amqp` a killed grader's jobs come back as soon as RabbitMQ sees its
+connection close.
 
 With `gcppubsub`:
 
@@ -81,7 +83,8 @@ With `gcppubsub`:
 
 On SIGTERM (either broker) the grader stops pulling and waits 5 s for running jobs. Then it kills
 the runs still going, sends no result for their jobs and nacks them, so another grader takes them
-at once. The systemd units use `KillMode=mixed`, so the stop signal reaches only the grader, not its
+at once. The release gets at most 2 s more, so a stop ends within about 7.5 s, before Docker's 10 s
+kill. The systemd units use `KillMode=mixed`, so the stop signal reaches only the grader, not its
 isolate processes: an isolate that gets the signal ends the box, and the run must not become a verdict.
 
 ### Limits

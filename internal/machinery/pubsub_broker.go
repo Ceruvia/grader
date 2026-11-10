@@ -37,6 +37,7 @@ var (
 	// within lease.
 	lease = 30 * time.Second
 	// rpcTimeout bounds each ack, nack or extension call, retries included.
+	// A stopping grader cuts calls off releaseGrace after the release.
 	rpcTimeout = 10 * time.Second
 	// settleRetry is the wait between failed ack or nack attempts.
 	settleRetry = time.Second
@@ -183,7 +184,7 @@ func (b *pubsubBroker) handle(m *pubsubpb.ReceivedMessage, p iface.TaskProcessor
 			// grader does not exit with live boxes or return a sandbox to a closed pool.
 			select {
 			case <-answered:
-			case <-time.After(shutdownGrace):
+			case <-b.releaseOver.Done():
 				log.WithFields(fields).Error("Released job did not end within the grace, exiting anyway")
 			}
 			return
@@ -227,7 +228,7 @@ func (b *pubsubBroker) settle(fields log.Fields, ackID string, leasedUntil time.
 }
 
 func (b *pubsubBroker) acknowledge(ackID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(b.releaseOver, rpcTimeout)
 	defer cancel()
 	return b.client.SubscriptionAdminClient.Acknowledge(ctx, &pubsubpb.AcknowledgeRequest{
 		Subscription: b.subscription, AckIds: []string{ackID},
@@ -236,7 +237,7 @@ func (b *pubsubBroker) acknowledge(ackID string) error {
 
 // setDeadline extends a lease, or with 0 nacks the message for redelivery now.
 func (b *pubsubBroker) setDeadline(ackID string, d time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(b.releaseOver, rpcTimeout)
 	defer cancel()
 	err := b.client.SubscriptionAdminClient.ModifyAckDeadline(ctx, &pubsubpb.ModifyAckDeadlineRequest{
 		Subscription: b.subscription, AckIds: []string{ackID}, AckDeadlineSeconds: int32(d / time.Second),

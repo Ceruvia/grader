@@ -18,10 +18,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// shutdownGrace is how long a stopping grader waits for running jobs before
-// it releases their messages for redelivery. It stays below Docker's
-// default 10 s stop timeout so the release happens before the kill.
-var shutdownGrace = 5 * time.Second
+var (
+	// shutdownGrace is how long a stopping grader waits for running jobs before
+	// it releases their messages for redelivery.
+	shutdownGrace = 5 * time.Second
+	// releaseGrace bounds all the release work: the nacks and the end of the
+	// released runs. With shutdownGrace a stop stays under 8 s, below Docker's
+	// default 10 s stop timeout, so the release happens before the kill.
+	releaseGrace = 2 * time.Second
+)
 
 // stopState is the shutdown state a broker shares with the callback backend.
 type stopState struct {
@@ -29,6 +34,9 @@ type stopState struct {
 	// results are dropped and their messages go back to the broker.
 	released context.Context
 	release  context.CancelFunc
+	// releaseOver ends releaseGrace after the release. Broker calls and waits
+	// for released jobs end with it.
+	releaseOver context.Context
 	// unanswered holds each signature whose callback got no final answer, so
 	// its message is nacked for redelivery instead of acked.
 	unanswered sync.Map
@@ -40,7 +48,10 @@ type stopState struct {
 
 func newStopState() *stopState {
 	released, release := context.WithCancel(context.Background())
-	return &stopState{released: released, release: release, stopped: make(chan struct{})}
+	releaseOver, endRelease := context.WithCancel(context.Background())
+	grace := releaseGrace
+	context.AfterFunc(released, func() { time.AfterFunc(grace, endRelease) })
+	return &stopState{released: released, release: release, releaseOver: releaseOver, stopped: make(chan struct{})}
 }
 
 // answered reports whether the callback of signature got a final answer.
@@ -52,13 +63,20 @@ func (s *stopState) answered(signature *tasks.Signature) bool {
 // waitStopped waits shutdownGrace for the consumer to report stopped, that
 // is for its running jobs to end. Then it releases the jobs still running:
 // their results are dropped, their messages go back to the broker and their
-// boxes are killed (sandboxes.BoundRuns).
+// boxes are killed (sandboxes.BoundRuns). The consumer gets releaseGrace for
+// that, and a little more to return, but no longer: a stop during Machinery's
+// retry sleep may never report stopped.
 func (s *stopState) waitStopped() {
 	select {
 	case <-s.stopped:
+		return
 	case <-time.After(shutdownGrace):
-		s.release()
-		<-s.stopped
+	}
+	s.release()
+	select {
+	case <-s.stopped:
+	case <-time.After(releaseGrace + releaseGrace/4):
+		log.Error("Consumer did not stop within the release grace, exiting anyway")
 	}
 }
 

@@ -45,6 +45,7 @@ const (
 // because its tests run inside the grader container without Docker.
 func TestMain(m *testing.M) {
 	shutdownGrace = 200 * time.Millisecond
+	releaseGrace = 1500 * time.Millisecond
 	lease = 3 * time.Second
 	settleRetry = 50 * time.Millisecond
 	rpcTimeout = 2 * time.Second
@@ -145,7 +146,13 @@ func launchGrader(t *testing.T, mq *ceruviaConfig.MessageQueueConfig, workers in
 
 func publish(t *testing.T, client *pubsub.Client, topic, task string) string {
 	t.Helper()
-	sig, err := tasks.NewSignature(task, []tasks.Arg{{Type: "string", Value: "sub-1"}})
+	return publishFor(t, client, topic, task, "sub-1")
+}
+
+// publishFor publishes a task for submission and returns its UUID.
+func publishFor(t *testing.T, client *pubsub.Client, topic, task, submission string) string {
+	t.Helper()
+	sig, err := tasks.NewSignature(task, []tasks.Arg{{Type: "string", Value: submission}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +343,7 @@ func TestPubSubAcksOnlyAfterFinalAnswer(t *testing.T) {
 		{"4xx acks", http.StatusNotFound, false, false, 0},
 		{"5xx releases", http.StatusServiceUnavailable, false, true, 0},
 		{"running job at shutdown releases", http.StatusOK, true, true, 0},
-		{"stop waits for the released job", http.StatusOK, false, true, 3 * shutdownGrace / 2},
+		{"stop waits for the released job", http.StatusOK, false, true, 3 * shutdownGrace},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client := requireEmulator(t)
@@ -397,6 +404,8 @@ type rpcFaults struct {
 	extensions    int
 	// lostExtension is closed when the lost extension was applied.
 	lostExtension chan struct{}
+	// hangNacks makes every nack hang until its call is cut off.
+	hangNacks bool
 }
 
 func (f *rpcFaults) record(e string) {
@@ -424,7 +433,13 @@ func (f *rpcFaults) intercept(ctx context.Context, method string, req, reply any
 		f.extensions++
 		lose = f.extensions == f.loseExtension
 	}
+	hang := f.hangNacks
 	f.mu.Unlock()
+	if m, ok := req.(*pubsubpb.ModifyAckDeadlineRequest); ok && m.AckDeadlineSeconds == 0 && hang {
+		f.record("nack hung")
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	if failAck {
 		f.record("ack failed")
 		return injected
