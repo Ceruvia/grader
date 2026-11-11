@@ -199,8 +199,8 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 	// No shell: the program is the operator's isolate binary, and every argument that can carry a
 	// submission filename follows `--run --`, so isolate runs it inside the box and never parses it.
 	cmd := exec.CommandContext(runs, command.Program, command.Args...) //nolint:gosec // see above.
-	// SIGTERM, not Go's default SIGKILL: isolate then kills the box and writes its meta file itself. A
-	// SIGKILLed keeper is init of the box PID namespace, so the kernel kills the program with it.
+	// SIGTERM, not Go's default SIGKILL: isolate then kills the box and writes its meta file itself. The
+	// keeper's child, the proxy, is init of the box PID namespace, so the program dies when the proxy does.
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	// A keeper that ignores the SIGTERM gets SIGKILL, so a released run never hangs.
 	cmd.WaitDelay = 2 * time.Second

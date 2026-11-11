@@ -115,9 +115,9 @@ func TestCrashingProgramIsRE(t *testing.T) {
 
 // A crashed grader (kill -9) must not leave its student program running until
 // the next start. With the main PID dead, KillMode=mixed SIGKILLs the rest of
-// the unit at once, keepers included. A keeper is init of the box PID namespace,
-// so the kernel kills the program too, although its cgroup is under
-// isolate.service. The unit runs without ExecStopPost: KillMode alone must do it.
+// the unit at once: the isolate keeper and its child, the proxy, are both in the
+// unit cgroup. The proxy is init of the box PID namespace, so the kernel kills
+// the program too, although the program's cgroup is under isolate.service. The unit runs without ExecStopPost: KillMode alone must do it.
 func TestCrashKillsTheRunningProgram(t *testing.T) {
 	t.Cleanup(func() { _ = sandboxes.CleanBox("/usr/local/bin/isolate", 1) }) // the crash leaves the box
 	broker := startPubSub(t)
@@ -161,7 +161,7 @@ func TestCrashKillsTheRunningProgram(t *testing.T) {
 }
 
 // The unit's ExecStopPost is a backstop: it kills the pool's box cgroups after
-// any exit, for a box whose keeper the unit's kill did not reach. Here the keeper
+// any exit, for a box whose proxy the unit's kill did not reach. Here the keeper
 // runs outside the unit, so only ExecStopPost can reach the program.
 func TestExecStopPostKillsBoxesOutsideTheUnit(t *testing.T) {
 	if _, err := exec.LookPath("systemd-run"); err != nil {

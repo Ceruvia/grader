@@ -10,9 +10,10 @@ WorkingDirectory=/opt/grader
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --cleanup
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --init
 ExecStart=/usr/local/bin/grader
-# Backstop for a box whose keeper is gone some other way: after every exit, kill the cgroups of the pool's
-# boxes (1 to GRADER_WORKER_COUNT, as in internal/pool). On a crash KillMode=mixed already SIGKILLs the
-# keepers, and each keeper is init of its box's PID namespace, so the kernel kills the program with it.
+# Backstop for a box whose proxy is gone some other way: after every exit, kill the cgroups of the pool's
+# boxes (1 to GRADER_WORKER_COUNT, as in internal/pool). On a crash KillMode=mixed SIGKILLs each isolate
+# keeper and its child, the proxy; both are in this cgroup. The proxy is init of the box's PID namespace,
+# so the kernel kills the program with it.
 ExecStopPost=-/bin/sh -c 'r=$$(cat /run/isolate/cgroup 2>/dev/null); case "$$r" in *..*) exit 0;; /sys/fs/cgroup/*) ;; *) exit 0;; esac; i=1; while [ "$$i" -le "$${GRADER_WORKER_COUNT:-3}" ]; do k="$$r/box-$$i/cgroup.kill"; [ -f "$$k" ] && echo 1 > "$$k"; i=$$((i+1)); done; exit 0'
 # SIGTERM only the grader, not its isolate keepers (see grader-docker.service).
 KillMode=mixed
