@@ -28,6 +28,7 @@ import (
 	"github.com/Ceruvia/grader/internal/config"
 	"github.com/Ceruvia/grader/internal/machinery"
 	"github.com/Ceruvia/grader/internal/pool"
+	"github.com/Ceruvia/grader/internal/sandboxes"
 	"github.com/RichardKnop/machinery/v2/tasks"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/api/option"
@@ -112,6 +113,111 @@ func TestCrashingProgramIsRE(t *testing.T) {
 	}
 }
 
+// A crashed grader (kill -9) must not leave its student program running until
+// the next start. With the main PID dead, systemd SIGKILLs the unit cgroup at
+// once (KillMode=mixed), keepers included, and the program dies with them.
+func TestCrashKillsTheRunningProgram(t *testing.T) {
+	t.Cleanup(func() { _ = sandboxes.CleanBox("/usr/local/bin/isolate", 1) }) // the crash leaves the box
+	broker := startPubSub(t)
+	url, _ := callbackServer(t)
+	unit := startGraderUnit(t, broker.env, url)
+	broker.publish(t, gradeSignature(t, programServer(t), "slow.zip"))
+	waitForRunOf(t, "-i1.in")
+	root, err := os.ReadFile("/run/isolate/cgroup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	procs := filepath.Join(strings.TrimSpace(string(root)), "box-1", "cgroup.procs")
+	if pids, err := os.ReadFile(procs); err != nil || len(bytes.TrimSpace(pids)) == 0 {
+		t.Fatalf("no program running in box 1 before the crash: %q, %v", pids, err)
+	}
+	out, err := exec.Command("systemctl", "show", "-p", "MainPID", "--value", unit).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("kill", "-9", strings.TrimSpace(string(out))).CombinedOutput(); err != nil {
+		t.Fatalf("kill -9: %v: %s", err, out)
+	}
+	crash := time.Now()
+	for {
+		pids, err := os.ReadFile(procs)
+		if os.IsNotExist(err) || (err == nil && len(bytes.TrimSpace(pids)) == 0) {
+			return
+		}
+		if time.Since(crash) > 2*time.Second {
+			t.Fatalf("box 1 still runs %q 2 s after the grader crashed (err %v)", pids, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// The unit's ExecStopPost kills the pool's box cgroups after any exit, also
+// those the unit's own kill misses: box cgroups live under isolate.service. Here
+// the box keeper runs outside the unit, so only ExecStopPost can reach the program.
+func TestExecStopPostKillsBoxesOutsideTheUnit(t *testing.T) {
+	if _, err := exec.LookPath("systemd-run"); err != nil {
+		t.Skip("needs systemd (run inside the grader test container)")
+	}
+	const isolate = "/usr/local/bin/isolate"
+	if err := sandboxes.CleanBox(isolate, 1); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command(isolate, "--cg", "-b", "1", "--init").CombinedOutput(); err != nil {
+		t.Fatalf("init: %v: %s", err, out)
+	}
+	keeper := exec.Command(isolate, "--cg", "-b", "1", "--run", "--", "/bin/sleep", "3002")
+	if err := keeper.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = keeper.Process.Kill()
+		_ = keeper.Wait()
+		_ = sandboxes.CleanBox(isolate, 1)
+	})
+	root, err := os.ReadFile("/run/isolate/cgroup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	procs := filepath.Join(strings.TrimSpace(string(root)), "box-1", "cgroup.procs")
+	boxEmpty := func() bool {
+		pids, err := os.ReadFile(procs)
+		return os.IsNotExist(err) || (err == nil && len(bytes.TrimSpace(pids)) == 0)
+	}
+	for deadline := time.Now().Add(5 * time.Second); boxEmpty(); time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the program never started in box 1")
+		}
+	}
+
+	unitFile, err := os.ReadFile("../../deployment/services/grader-docker.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unit := "grader-stoppost-" + strconv.FormatInt(time.Now().UnixNano(), 36) + ".service"
+	args := []string{"--unit=" + unit, "--collect", "--setenv=GRADER_WORKER_COUNT=1"}
+	for _, line := range strings.Split(string(unitFile), "\n") {
+		if strings.HasPrefix(line, "KillMode=") || strings.HasPrefix(line, "ExecStopPost=") {
+			args = append(args, "-p", line)
+		}
+	}
+	if out, err := exec.Command("systemd-run", append(args, "/bin/sleep", "600")...).CombinedOutput(); err != nil {
+		t.Fatalf("systemd-run: %v: %s", err, out)
+	}
+	t.Cleanup(func() { _ = exec.Command("systemctl", "stop", unit).Run() })
+	pid, err := exec.Command("systemctl", "show", "-p", "MainPID", "--value", unit).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("kill", "-9", strings.TrimSpace(string(pid))).CombinedOutput(); err != nil {
+		t.Fatalf("kill -9: %v: %s", err, out)
+	}
+	for crash := time.Now(); !boxEmpty(); time.Sleep(20 * time.Millisecond) {
+		if time.Since(crash) > 2*time.Second {
+			t.Fatal("box 1 still runs its program 2 s after the unit's main process was killed")
+		}
+	}
+}
+
 // runGrader is the child: what cmd/server does, with config from the environment.
 func runGrader(t *testing.T) {
 	cfg, err := config.GetAppConfig()
@@ -126,7 +232,7 @@ func runGrader(t *testing.T) {
 }
 
 // startGraderUnit runs a grader child as a transient systemd service with the
-// KillMode of the deployed unit, so `systemctl stop` signals it as in production.
+// KillMode and ExecStopPost of the deployed unit, so `systemctl stop` signals it as in production.
 func startGraderUnit(t *testing.T, env map[string]string, callbackURL string) string {
 	t.Helper()
 	if _, err := exec.LookPath("systemd-run"); err != nil {
@@ -139,7 +245,7 @@ func startGraderUnit(t *testing.T, env map[string]string, callbackURL string) st
 	unit := "grader-test-" + strconv.FormatInt(time.Now().UnixNano(), 36) + ".service"
 	args := []string{"--unit=" + unit, "--collect"}
 	for _, line := range strings.Split(string(unitFile), "\n") {
-		if strings.HasPrefix(line, "KillMode=") {
+		if strings.HasPrefix(line, "KillMode=") || strings.HasPrefix(line, "ExecStopPost=") {
 			args = append(args, "-p", line)
 		}
 	}

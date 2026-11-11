@@ -112,7 +112,7 @@ func NewServer(cfg *ceruviaConfig.ServerConfig, taskFuncs map[string]interface{}
 	} else {
 		broker = newAMQPBroker(cnf, stop)
 	}
-	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, stop: stop}
+	backend := &callbackBackend{Backend: nullbackend.New(), cfg: cfg, stop: stop, capFailures: cfg.MQCfg.Broker != ceruviaConfig.BrokerPubSub}
 	server := machinery.NewServer(cnf, broker, backend, eagerlock.New())
 
 	if err := server.RegisterTasks(taskFuncs); err != nil {

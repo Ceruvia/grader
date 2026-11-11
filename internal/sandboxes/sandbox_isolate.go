@@ -250,7 +250,7 @@ func (s *IsolateSandbox) Cleanup() error {
 // CleanBox removes whatever a previous grader process left in the box, live
 // processes included. It does nothing to a box that was never initialized.
 func CleanBox(isolatePath string, boxId int) error {
-	if err := killBoxProcesses(boxId); err != nil {
+	if err := KillBoxProcesses(boxId); err != nil {
 		return fmt.Errorf("kill box processes: %w", err)
 	}
 	if err := recoverBoxStorage(boxId); err != nil {
@@ -263,6 +263,10 @@ func CleanBox(isolatePath string, boxId int) error {
 		if err = stale.cleanUpIsolate(); err == nil {
 			return os.RemoveAll(TaskDir(boxId))
 		}
+		// --cleanup rejects a box whose --init failed half way. --init recovers it.
+		if _, initErr := stale.initIsolate(); initErr != nil {
+			err = errors.Join(err, initErr)
+		}
 	}
 	return err
 }
@@ -271,6 +275,19 @@ func (s *IsolateSandbox) initSandbox() error {
 	if err := recoverBoxStorage(s.BoxId); err != nil {
 		return err
 	}
+	root, err := s.initIsolate()
+	if err != nil {
+		return err
+	}
+	s.BoxDir = root + "/box"
+	if err := mountBoxStorage(s.BoxDir); err != nil {
+		return errors.Join(fmt.Errorf("mount bounded box storage: %w", err), s.cleanUpIsolate())
+	}
+	return nil
+}
+
+// initIsolate runs isolate --init and returns the box root it prints.
+func (s *IsolateSandbox) initIsolate() (string, error) {
 	command := command.GetCommandBuilder(s.IsolatePath)
 	command.AddArgs("-b " + strconv.Itoa(s.BoxId))
 	command.AddArgs("--cg")
@@ -279,17 +296,10 @@ func (s *IsolateSandbox) initSandbox() error {
 	cmd := exec.Command(command.Program, command.Args...) //nolint:gosec // operator's isolate binary, args are the box id and fixed flags.
 	var stdout diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stdout
-	err := cmd.Run()
-
-	if err == nil && cmd.ProcessState.ExitCode() == 0 {
-		s.BoxDir = strings.TrimSpace(stdout.String()) + "/box"
-		if err := mountBoxStorage(s.BoxDir); err != nil {
-			return errors.Join(fmt.Errorf("mount bounded box storage: %w", err), s.cleanUpIsolate())
-		}
-		return nil
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("initialize isolate: %w: %s", err, stdout.String())
 	}
-
-	return fmt.Errorf("initialize isolate: %w: %s", err, stdout.String())
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 func (s *IsolateSandbox) cleanUpIsolate() error {

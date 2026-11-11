@@ -10,6 +10,10 @@ WorkingDirectory=/opt/grader
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --cleanup
 ExecStartPre=/usr/local/bin/isolate --cg -b 999 --init
 ExecStart=/usr/local/bin/grader
+# A crash (kill -9) of the grader leaves its student programs running: their box cgroups live under
+# isolate.service, so this unit's final kill misses them. Kill the pool's boxes (1 to GRADER_WORKER_COUNT,
+# as in internal/pool) after every exit. The grader cleans them again at start.
+ExecStopPost=-/bin/sh -c 'r=$$(cat /run/isolate/cgroup 2>/dev/null); case "$$r" in /sys/fs/cgroup/*) ;; *) exit 0;; esac; i=1; while [ "$$i" -le "$${GRADER_WORKER_COUNT:-3}" ]; do k="$$r/box-$$i/cgroup.kill"; [ -f "$$k" ] && echo 1 > "$$k"; i=$$((i+1)); done; exit 0'
 # SIGTERM only the grader, not its isolate keepers (see grader-docker.service).
 KillMode=mixed
 Restart=always

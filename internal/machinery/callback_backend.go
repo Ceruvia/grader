@@ -23,9 +23,13 @@ type callbackBackend struct {
 	// broker redelivers it. Once the stopping grader released its running jobs,
 	// their results are dropped: a run the stop cut short must not become a verdict.
 	stop *stopState
-	// failures counts the failed callbacks of each job by signature UUID, so a
-	// job whose callback always fails is not redelivered forever. On AMQP a
-	// requeued message keeps its place, so it would starve every job behind it.
+	// capFailures drops a job after maxCallbackFailures failed callbacks. AMQP
+	// only: a requeued message keeps its place, so a job whose callback always
+	// fails would starve every job behind it. A Pub/Sub nack does not block the
+	// other messages, so a job is redelivered until the Backend answers, also
+	// through a Backend deploy of several minutes.
+	capFailures bool
+	// failures counts the failed callbacks of each job by signature UUID.
 	// shortcut: a count that never reaches the cap stays in memory until restart, fine for one exam day.
 	failures sync.Map
 }
@@ -99,6 +103,9 @@ func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	case b.stop.released.Err() != nil:
 		b.stop.unanswered.Store(signature, struct{}{})
 		log.WithFields(fields).WithError(err).Warn("Grader stopping, callback cancelled, job released for redelivery")
+	case !b.capFailures:
+		b.stop.unanswered.Store(signature, struct{}{})
+		log.WithFields(fields).WithError(err).Error("Callback failed, job released for redelivery")
 	default:
 		count, _ := b.failures.LoadOrStore(signature.UUID, new(atomic.Int32))
 		if n := count.(*atomic.Int32).Add(1); n >= maxCallbackFailures {

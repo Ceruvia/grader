@@ -20,7 +20,7 @@ func TestStopIsBounded(t *testing.T) {
 	savedShutdown, savedRelease := shutdownGrace, releaseGrace
 	shutdownGrace, releaseGrace = time.Second, 200*time.Millisecond
 	t.Cleanup(func() { shutdownGrace, releaseGrace = savedShutdown, savedRelease })
-	limit := shutdownGrace + releaseGrace*5/4 + 300*time.Millisecond
+	limit := shutdownGrace + releaseGrace*5/4 + time.Second // waitStopped bound plus 1 s to return
 
 	run := func(t *testing.T, start func(fn any, callbackURL string) func(), publish func()) {
 		callbackURL, _ := backendStub(t, http.StatusOK)
@@ -63,59 +63,54 @@ func TestStopIsBounded(t *testing.T) {
 	})
 }
 
-// A job whose callback always fails is acked after maxCallbackFailures
+// On AMQP a job whose callback always fails is acked after maxCallbackFailures
 // failures and its submission left pending. Requeued forever, it would starve
 // the jobs behind it: RabbitMQ requeues a nacked message at its old place.
 func TestPoisonJobIsDropped(t *testing.T) {
-	posts := len(callbackBackoff) + 1 // one failed callback
-	want := maxCallbackFailures * posts
-
-	run := func(t *testing.T, start func(callbackURL string) func(), publish func(submission string), drained func()) {
-		callbackURL, poisonPosts, good := poisonStub(t, "poison")
-		stop := start(callbackURL)
-		publish("poison")
-		publish("good")
-		receive(t, good, "callback of the job behind the poison job")
-		deadline := time.Now().Add(waitLimit)
-		for poisonPosts() < want && time.Now().Before(deadline) {
-			time.Sleep(20 * time.Millisecond)
-		}
-		time.Sleep(500 * time.Millisecond) // a redelivery would post again by now
-		if got := poisonPosts(); got != want {
-			t.Fatalf("poison job posted %d callbacks, want %d (%d failures)", got, want, maxCallbackFailures)
-		}
-		stop()
-		drained()
+	url := requireAMQP(t)
+	ch, queue := newQueue(t, url)
+	callbackURL, poisonPosts, good := poisonStub(t, "poison")
+	stop := launchGrader(t, &ceruviaConfig.MessageQueueConfig{
+		Broker: ceruviaConfig.BrokerAMQP, BrokerURL: url, QueueName: queue,
+	}, 1, "blackbox", func(string) (string, error) { return "{}", nil }, callbackURL)
+	amqpPublish(t, ch, queue, "poison")
+	amqpPublish(t, ch, queue, "good")
+	// One worker with prefetch 1, and a requeued poison job goes back ahead of
+	// the good one. So once the good job is answered, the poison job was settled
+	// for good: no later redelivery can add a post.
+	receive(t, good, "callback of the job behind the poison job")
+	want := maxCallbackFailures * (len(callbackBackoff) + 1)
+	if got := poisonPosts(); got != want {
+		t.Fatalf("poison job posted %d callbacks, want %d (%d failures)", got, want, maxCallbackFailures)
 	}
+	stop()
+	q, err := ch.QueueDeclarePassive(queue, true, false, false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Messages != 0 {
+		t.Fatalf("queue holds %d messages after the poison job was dropped, want 0", q.Messages)
+	}
+}
 
-	t.Run("amqp", func(t *testing.T) {
-		url := requireAMQP(t)
-		ch, queue := newQueue(t, url)
-		run(t, func(callbackURL string) func() {
-			return launchGrader(t, &ceruviaConfig.MessageQueueConfig{
-				Broker: ceruviaConfig.BrokerAMQP, BrokerURL: url, QueueName: queue,
-			}, 1, "blackbox", func(string) (string, error) { return "{}", nil }, callbackURL)
-		}, func(submission string) { amqpPublish(t, ch, queue, submission) }, func() {
-			q, err := ch.QueueDeclarePassive(queue, true, false, false, false, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if q.Messages != 0 {
-				t.Fatalf("queue holds %d messages after the poison job was dropped, want 0", q.Messages)
-			}
-		})
-	})
-	t.Run("pubsub", func(t *testing.T) {
-		client := requireEmulator(t)
-		topic, sub := newSubscription(t, client, 10)
-		run(t, func(callbackURL string) func() {
-			return startGrader(t, sub, 1, "blackbox", func(string) (string, error) { return "{}", nil }, callbackURL)
-		}, func(submission string) { publishFor(t, client, topic, "blackbox", submission) }, func() {
-			if got := pollPending(t, client, sub, time.Now().Add(2*lease)); len(got) != 0 {
-				t.Fatalf("subscription redelivered %v, want the poison job acked", got)
-			}
-		})
-	})
+// On Pub/Sub a job whose callback keeps failing is released again after
+// maxCallbackFailures failures, not dropped: a nack does not block the other
+// messages, and the job must survive a Backend deploy.
+func TestPubSubFailingCallbackIsNotDropped(t *testing.T) {
+	client := requireEmulator(t)
+	topic, sub := newSubscription(t, client, 10)
+	callbackURL, poisonPosts, _ := poisonStub(t, "poison")
+	stop := startGrader(t, sub, 1, "blackbox", func(string) (string, error) { return "{}", nil }, callbackURL)
+	publishFor(t, client, topic, "blackbox", "poison")
+	// A post after the cap is a redelivery of a job the cap would have dropped.
+	beyondCap := maxCallbackFailures*(len(callbackBackoff)+1) + 1
+	for deadline := time.Now().Add(waitLimit); poisonPosts() < beyondCap; time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("poison job posted %d callbacks within %s, want it redelivered past %d failures",
+				poisonPosts(), waitLimit, maxCallbackFailures)
+		}
+	}
+	stop()
 }
 
 // poisonStub answers 500 to every callback for poison and 200 to the others,

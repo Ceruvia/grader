@@ -68,8 +68,10 @@ status, which counts as the backend's final answer.
 
 With either broker delivery is at least once. The message is acked only after a 2xx or a final 4xx.
 If every attempt fails, it is nacked (requeued on `amqp`), so the job is graded again (by any
-grader). After 5 such failures on one grader the job is acked anyway and its submission stays
-pending, so a job the backend never accepts cannot block the queue. The backend ignores a second
+grader). With `amqp`, after 5 such failures on one grader the job is acked anyway and its submission
+stays pending: a requeued message keeps its place, so a job the backend never accepts would block the
+queue. With `gcppubsub` there is no cap: a nack does not block other messages, so the job comes back
+until the backend answers, also through a backend deploy of several minutes. The backend ignores a second
 result for a final row. With `amqp` a killed grader's jobs come back as soon as RabbitMQ sees its
 connection close.
 
@@ -86,8 +88,13 @@ the runs still going, sends no result for their jobs and nacks them, so another 
 at once. The release gets at most 2 s more, so a stop ends within about 7.5 s, before Docker's 10 s
 kill. The systemd units use `KillMode=mixed`, so the stop signal reaches only the grader, not its
 isolate processes: an isolate that gets the signal ends the box, and the run must not become a verdict.
-A crash (`kill -9`) leaves its boxes behind. At start the grader cleans every box of its pool, killing
-any process still in it, before it takes a job, so the next start removes what a crash left.
+The 7.5 s bound ends when the consumer has stopped. `Pool.Close` runs after it, cleaning each idle
+box (each unmount may wait up to 2 s on a busy box), and is not part of the bound.
+
+After a crash (`kill -9`) systemd kills the unit's processes, isolate keepers included. The box
+cgroups live under `isolate.service`, so the units' `ExecStopPost` also writes `1` to `cgroup.kill`
+of boxes 1 to `GRADER_WORKER_COUNT` after every exit. At start the grader kills and cleans every box
+of its pool again before it takes a job.
 
 ### Limits
 
