@@ -26,6 +26,13 @@ func NewSandboxPool(isolatePath string, size int) error {
 
 	ch := make(chan sandboxSlot, size)
 	for i := 1; i <= size; i++ {
+		// A crash leaves boxes behind. Clean every one before it serves a job;
+		// one that cannot be cleaned stays quarantined until Acquire retries it.
+		if err := sandboxes.CleanBox(isolatePath, i); err != nil {
+			log.WithField("sandboxId", i).WithError(err).Error("Stale sandbox cleanup failed, quarantining box")
+			ch <- sandboxSlot{sb: &sandboxes.IsolateSandbox{IsolatePath: isolatePath, BoxId: i}, cleanupRequired: true}
+			continue
+		}
 		sb, err := sandboxes.CreateIsolateSandbox(isolatePath, i)
 		if err != nil {
 			close(ch)

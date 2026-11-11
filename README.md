@@ -86,6 +86,8 @@ the runs still going, sends no result for their jobs and nacks them, so another 
 at once. The release gets at most 2 s more, so a stop ends within about 7.5 s, before Docker's 10 s
 kill. The systemd units use `KillMode=mixed`, so the stop signal reaches only the grader, not its
 isolate processes: an isolate that gets the signal ends the box, and the run must not become a verdict.
+A crash (`kill -9`) leaves its boxes behind. At start the grader cleans every box of its pool, killing
+any process still in it, before it takes a job, so the next start removes what a crash left.
 
 ### Limits
 

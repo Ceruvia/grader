@@ -76,3 +76,22 @@ func unmountBoxStorage(path string) error {
 		time.Sleep(min(wait, time.Until(deadline)))
 	}
 }
+
+// killBoxProcesses kills every process in the box's cgroup. A box left by a
+// crashed grader can still run a student program, and its isolate keeper then
+// holds the box lock, so neither --cleanup nor --init can touch the box. The
+// keeper exits once the program is gone.
+func killBoxProcesses(boxID int) error {
+	path, err := os.ReadFile("/run/isolate/cgroup") // written by isolate.service
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filepath.Join(strings.TrimSpace(string(path)), "box-"+strconv.Itoa(boxID), "cgroup.kill"), []byte("1"), 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}

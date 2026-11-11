@@ -247,6 +247,26 @@ func (s *IsolateSandbox) Cleanup() error {
 	return os.RemoveAll(TaskDir(s.BoxId))
 }
 
+// CleanBox removes whatever a previous grader process left in the box, live
+// processes included. It does nothing to a box that was never initialized.
+func CleanBox(isolatePath string, boxId int) error {
+	if err := killBoxProcesses(boxId); err != nil {
+		return fmt.Errorf("kill box processes: %w", err)
+	}
+	if err := recoverBoxStorage(boxId); err != nil {
+		return err
+	}
+	stale := IsolateSandbox{IsolatePath: isolatePath, BoxId: boxId}
+	// The keeper releases the box lock a moment after its program is killed.
+	var err error
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if err = stale.cleanUpIsolate(); err == nil {
+			return os.RemoveAll(TaskDir(boxId))
+		}
+	}
+	return err
+}
+
 func (s *IsolateSandbox) initSandbox() error {
 	if err := recoverBoxStorage(s.BoxId); err != nil {
 		return err

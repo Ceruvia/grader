@@ -11,3 +11,5 @@ func mountBoxStorage(string) error {
 func unmountBoxStorage(string) error { return nil }
 
 func recoverBoxStorage(int) error { return nil }
+
+func killBoxProcesses(int) error { return nil }

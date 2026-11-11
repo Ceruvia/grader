@@ -139,3 +139,52 @@ func repairTestBox(boxDir string) {
 	_ = exec.Command("/usr/local/bin/isolate", "-b", id, "--cg", "--init").Run()
 	_ = exec.Command("/usr/local/bin/isolate", "-b", id, "--cg", "--cleanup").Run()
 }
+
+// A crashed grader leaves its isolate keeper and the student program alive in
+// the box. Starting the pool must kill them and leave a box that runs a job.
+func TestPoolStartCleansBoxWithLiveProcess(t *testing.T) {
+	const isolate = "/usr/local/bin/isolate"
+	if out, err := exec.Command(isolate, "--cg", "-b", "1", "--init").CombinedOutput(); err != nil {
+		t.Fatalf("init: %v: %s", err, out)
+	}
+	t.Cleanup(func() { _ = exec.Command(isolate, "--cg", "-b", "1", "--cleanup").Run() })
+	keeper := exec.Command(isolate, "--cg", "-b", "1", "--run", "--", "/bin/sleep", "3001")
+	if err := keeper.Start(); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan struct{})
+	go func() { _ = keeper.Wait(); close(exited) }()
+	t.Cleanup(func() { _ = keeper.Process.Kill() })
+	for i := 0; exec.Command("pgrep", "-f", "^/bin/sleep 3001").Run() != nil; i++ {
+		if i > 50 {
+			t.Fatal("the program never started in the box")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if err := pool.NewSandboxPool(isolate, 1); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Pool.Close()
+
+	select {
+	case <-exited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the isolate keeper of the previous process survived the pool start")
+	}
+	if exec.Command("pgrep", "-f", "^/bin/sleep 3001").Run() == nil {
+		t.Fatal("the student program survived the pool start")
+	}
+	sbx, err := pool.Pool.Acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Pool.Release(sbx)
+	red := sandboxes.CreateRedirectionFiles(sbx)
+	if err := red.CreateNewMetaFileAndRedirect("start.meta"); err != nil {
+		t.Fatal(err)
+	}
+	if result := sbx.Execute(*command.GetCommandBuilder("/bin/true"), red); result.Status != sandboxes.ZERO_EXIT_CODE {
+		t.Fatalf("the cleaned box cannot run a job: %+v", result)
+	}
+}
