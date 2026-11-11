@@ -114,13 +114,15 @@ func TestCrashingProgramIsRE(t *testing.T) {
 }
 
 // A crashed grader (kill -9) must not leave its student program running until
-// the next start. With the main PID dead, systemd SIGKILLs the unit cgroup at
-// once (KillMode=mixed), keepers included, and the program dies with them.
+// the next start. With the main PID dead, KillMode=mixed SIGKILLs the rest of
+// the unit at once, keepers included. A keeper is init of the box PID namespace,
+// so the kernel kills the program too, although its cgroup is under
+// isolate.service. The unit runs without ExecStopPost: KillMode alone must do it.
 func TestCrashKillsTheRunningProgram(t *testing.T) {
 	t.Cleanup(func() { _ = sandboxes.CleanBox("/usr/local/bin/isolate", 1) }) // the crash leaves the box
 	broker := startPubSub(t)
 	url, _ := callbackServer(t)
-	unit := startGraderUnit(t, broker.env, url)
+	unit := startUnitWith(t, broker.env, url, "KillMode=")
 	broker.publish(t, gradeSignature(t, programServer(t), "slow.zip"))
 	waitForRunOf(t, "-i1.in")
 	root, err := os.ReadFile("/run/isolate/cgroup")
@@ -128,8 +130,15 @@ func TestCrashKillsTheRunningProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 	procs := filepath.Join(strings.TrimSpace(string(root)), "box-1", "cgroup.procs")
-	if pids, err := os.ReadFile(procs); err != nil || len(bytes.TrimSpace(pids)) == 0 {
-		t.Fatalf("no program running in box 1 before the crash: %q, %v", pids, err)
+	// isolate moves the program into the box cgroup a moment after it starts.
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		pids, err := os.ReadFile(procs)
+		if err == nil && len(bytes.TrimSpace(pids)) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no program running in box 1 before the crash: %q, %v", pids, err)
+		}
 	}
 	out, err := exec.Command("systemctl", "show", "-p", "MainPID", "--value", unit).Output()
 	if err != nil {
@@ -151,9 +160,9 @@ func TestCrashKillsTheRunningProgram(t *testing.T) {
 	}
 }
 
-// The unit's ExecStopPost kills the pool's box cgroups after any exit, also
-// those the unit's own kill misses: box cgroups live under isolate.service. Here
-// the box keeper runs outside the unit, so only ExecStopPost can reach the program.
+// The unit's ExecStopPost is a backstop: it kills the pool's box cgroups after
+// any exit, for a box whose keeper the unit's kill did not reach. Here the keeper
+// runs outside the unit, so only ExecStopPost can reach the program.
 func TestExecStopPostKillsBoxesOutsideTheUnit(t *testing.T) {
 	if _, err := exec.LookPath("systemd-run"); err != nil {
 		t.Skip("needs systemd (run inside the grader test container)")
@@ -235,6 +244,13 @@ func runGrader(t *testing.T) {
 // KillMode and ExecStopPost of the deployed unit, so `systemctl stop` signals it as in production.
 func startGraderUnit(t *testing.T, env map[string]string, callbackURL string) string {
 	t.Helper()
+	return startUnitWith(t, env, callbackURL, "KillMode=", "ExecStopPost=")
+}
+
+// startUnitWith is startGraderUnit with only the deployed unit lines that have
+// one of the given prefixes.
+func startUnitWith(t *testing.T, env map[string]string, callbackURL string, prefixes ...string) string {
+	t.Helper()
 	if _, err := exec.LookPath("systemd-run"); err != nil {
 		t.Skip("needs systemd (run inside the grader test container)")
 	}
@@ -245,7 +261,7 @@ func startGraderUnit(t *testing.T, env map[string]string, callbackURL string) st
 	unit := "grader-test-" + strconv.FormatInt(time.Now().UnixNano(), 36) + ".service"
 	args := []string{"--unit=" + unit, "--collect"}
 	for _, line := range strings.Split(string(unitFile), "\n") {
-		if strings.HasPrefix(line, "KillMode=") || strings.HasPrefix(line, "ExecStopPost=") {
+		if slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(line, p) }) {
 			args = append(args, "-p", line)
 		}
 	}

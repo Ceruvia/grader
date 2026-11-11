@@ -91,10 +91,12 @@ isolate processes: an isolate that gets the signal ends the box, and the run mus
 The 7.5 s bound ends when the consumer has stopped. `Pool.Close` runs after it, cleaning each idle
 box (each unmount may wait up to 2 s on a busy box), and is not part of the bound.
 
-After a crash (`kill -9`) systemd kills the unit's processes, isolate keepers included. The box
-cgroups live under `isolate.service`, so the units' `ExecStopPost` also writes `1` to `cgroup.kill`
-of boxes 1 to `GRADER_WORKER_COUNT` after every exit. At start the grader kills and cleans every box
-of its pool again before it takes a job.
+After a crash (`kill -9`) `KillMode=mixed` SIGKILLs the rest of the unit at once, isolate keepers
+included. Each keeper is init of its box's PID namespace, so the kernel then kills the student
+program too, although its cgroup lives under `isolate.service`. Two backstops cover a box whose
+keeper is gone some other way: the units' `ExecStopPost` writes `1` to `cgroup.kill` of boxes 1 to
+`GRADER_WORKER_COUNT` after every exit, and at start the grader kills and cleans every box of its
+pool before it takes a job. `TimeoutStopSec=10s` bounds a stop that hangs.
 
 ### Limits
 
