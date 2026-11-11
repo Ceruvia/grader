@@ -54,7 +54,7 @@ func isolateCgroupRoot() (string, error) {
 		return "", err
 	}
 	if file, ok := strings.CutPrefix(root, "auto:"); ok {
-		content, err := os.ReadFile(file)
+		content, err := os.ReadFile(file) //nolint:gosec // the file named by cg_root in isolate's root-owned config.
 		if err != nil {
 			return "", fmt.Errorf("read isolate cg_root: %w", err)
 		}
@@ -118,7 +118,7 @@ func KillBoxProcesses(boxID int) error {
 	if _, err := os.Stat(box); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
-	kill, err := os.OpenFile(filepath.Join(box, "cgroup.kill"), os.O_WRONLY, 0)
+	kill, err := os.OpenFile(filepath.Join(box, "cgroup.kill"), os.O_WRONLY, 0) //nolint:gosec // box is under the checked absolute /sys/fs/cgroup/ prefix.
 	if err != nil {
 		return err
 	}
