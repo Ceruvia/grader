@@ -6,7 +6,7 @@
 
 # ---------- isolate ----------
 # Build tools (git, libcap-dev, libsystemd-dev, pkg-config) live only in this stage.
-FROM ubuntu:22.04 AS isolate
+FROM ubuntu:25.10 AS isolate
 
 # Ubuntu images delete downloaded packages after every apt run. Turn that off so the cache mounts work.
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
@@ -25,7 +25,7 @@ RUN git clone --depth 1 --branch v2.1 https://github.com/ioi/isolate.git /tmp/is
     make -j"$(nproc)" install DESTDIR=/out
 
 # ---------- base ----------
-FROM ubuntu:22.04 AS base
+FROM ubuntu:25.10 AS base
 
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
