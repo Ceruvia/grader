@@ -132,10 +132,159 @@ func TestPoolRecoversActualPartialInitialization(t *testing.T) {
 	defer pool.Pool.Release(recovered)
 }
 
+// A box whose --init failed half way, left by a previous process, is cleaned
+// at start: --cleanup alone rejects it, so the box would stay quarantined.
+func TestPoolStartRecoversPartialInitialization(t *testing.T) {
+	if err := pool.NewSandboxPool("/usr/local/bin/isolate", 1); err != nil {
+		t.Fatal(err)
+	}
+	sbx, ok := pool.Pool.TryAcquire()
+	if !ok {
+		t.Fatal("no sandbox")
+	}
+	boxDir := sbx.GetBoxdir()
+	pool.Pool.Release(sbx)
+	fault := filepath.Join(filepath.Dir(boxDir), "block-initialization")
+	if err := os.MkdirAll(fault, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("mount", "-t", "tmpfs", "-o", "size=1m", "tmpfs", fault).CombinedOutput(); err != nil {
+		t.Fatalf("inject filesystem fault: %v %s", err, output)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("umount", fault).Run()
+		repairTestBox(boxDir)
+	})
+	if unexpected, ok := pool.Pool.TryAcquire(); ok {
+		pool.Pool.Release(unexpected)
+		t.Fatal("isolate initialization unexpectedly succeeded through a nested mount")
+	}
+	pool.Pool.Close() // the previous process ends with the box half initialized
+	output, err := exec.Command("/usr/local/bin/isolate", "-b", "1", "--cg", "--cleanup").CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "not initialized properly") {
+		t.Fatalf("fault did not create a real partial isolate lock: %v %s", err, output)
+	}
+	if output, err := exec.Command("umount", fault).CombinedOutput(); err != nil {
+		t.Fatalf("clear filesystem fault: %v %s", err, output)
+	}
+
+	if err := pool.NewSandboxPool("/usr/local/bin/isolate", 1); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Pool.Close()
+	recovered, ok := pool.Pool.TryAcquire()
+	if !ok {
+		t.Fatal("a half initialized box stays quarantined after the next start")
+	}
+	pool.Pool.Release(recovered)
+}
+
 // Restore actual isolate state even after a deliberately broken regression run.
 func repairTestBox(boxDir string) {
 	id := filepath.Base(filepath.Dir(boxDir))
 	_ = exec.Command("umount", boxDir).Run()
 	_ = exec.Command("/usr/local/bin/isolate", "-b", id, "--cg", "--init").Run()
 	_ = exec.Command("/usr/local/bin/isolate", "-b", id, "--cg", "--cleanup").Run()
+}
+
+// A crashed grader leaves its isolate keeper and the student program alive in
+// the box. Starting the pool must kill them and leave a box that runs a job.
+func TestPoolStartCleansBoxWithLiveProcess(t *testing.T) {
+	const isolate = "/usr/local/bin/isolate"
+	if out, err := exec.Command(isolate, "--cg", "-b", "1", "--init").CombinedOutput(); err != nil {
+		t.Fatalf("init: %v: %s", err, out)
+	}
+	t.Cleanup(func() { _ = exec.Command(isolate, "--cg", "-b", "1", "--cleanup").Run() })
+	keeper := exec.Command(isolate, "--cg", "-b", "1", "--run", "--", "/bin/sleep", "3001")
+	if err := keeper.Start(); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan struct{})
+	go func() { _ = keeper.Wait(); close(exited) }()
+	t.Cleanup(func() { _ = keeper.Process.Kill() })
+	for i := 0; exec.Command("pgrep", "-f", "^/bin/sleep 3001").Run() != nil; i++ {
+		if i > 50 {
+			t.Fatal("the program never started in the box")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if err := pool.NewSandboxPool(isolate, 1); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Pool.Close()
+
+	select {
+	case <-exited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the isolate keeper of the previous process survived the pool start")
+	}
+	if exec.Command("pgrep", "-f", "^/bin/sleep 3001").Run() == nil {
+		t.Fatal("the student program survived the pool start")
+	}
+	sbx, err := pool.Pool.Acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Pool.Release(sbx)
+	red := sandboxes.CreateRedirectionFiles(sbx)
+	if err := red.CreateNewMetaFileAndRedirect("start.meta"); err != nil {
+		t.Fatal(err)
+	}
+	if result := sbx.Execute(*command.GetCommandBuilder("/bin/true"), red); result.Status != sandboxes.ZERO_EXIT_CODE {
+		t.Fatalf("the cleaned box cannot run a job: %+v", result)
+	}
+}
+
+// A box that cannot be cleaned at start is quarantined, and the next Acquire
+// cleans it again once whatever held it is gone. Here a process outside the
+// box holds a box file open, so the box storage cannot be unmounted at start.
+func TestPoolRecoversBoxQuarantinedAtStart(t *testing.T) {
+	const isolate = "/usr/local/bin/isolate"
+	stale, err := sandboxes.CreateIsolateSandbox(isolate, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sandboxes.CleanBox(isolate, 1) })
+	file, err := os.Create(filepath.Join(stale.GetBoxdir(), "held"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	holder := exec.Command("sh", "-c", "read _")
+	holder.ExtraFiles = []*os.File{file}
+	stdin, err := holder.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = holder.Process.Kill(); _ = holder.Wait() })
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := pool.NewSandboxPool(isolate, 1); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Pool.Close()
+	if sbx, ok := pool.Pool.TryAcquire(); ok {
+		pool.Pool.Release(sbx)
+		t.Fatal("a box held at start was not quarantined")
+	}
+	_ = stdin.Close()
+	_ = holder.Wait() // read exits 1 at end of input
+
+	sbx, err := pool.Pool.Acquire()
+	if err != nil {
+		t.Fatalf("the quarantined box did not recover once released: %v", err)
+	}
+	defer pool.Pool.Release(sbx)
+	red := sandboxes.CreateRedirectionFiles(sbx)
+	if err := red.CreateNewMetaFileAndRedirect("recovered.meta"); err != nil {
+		t.Fatal(err)
+	}
+	if result := sbx.Execute(*command.GetCommandBuilder("/bin/true"), red); result.Status != sandboxes.ZERO_EXIT_CODE {
+		t.Fatalf("the recovered box cannot run a job: %+v", result)
+	}
 }

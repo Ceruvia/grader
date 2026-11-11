@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	cloud.google.com/go/pubsub/v2 v2.8.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sirupsen/logrus v1.10.2
 	github.com/testcontainers/testcontainers-go v0.44.0
@@ -43,6 +44,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
@@ -80,7 +82,6 @@ require (
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/time v0.15.0 // indirect
@@ -101,7 +102,6 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/rabbitmq/amqp091-go v1.14.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	go.mongodb.org/mongo-driver v1.17.7 // indirect
 	go.opencensus.io v0.24.0 // indirect

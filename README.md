@@ -66,19 +66,38 @@ When the grader itself fails (download, unzip, sandbox), the task returns an err
 waits of 2, 4 and 8 s. It retries on network errors, 5xx and 429, and stops on any other non-2xx
 status, which counts as the backend's final answer.
 
-With `amqp` the message is acked after the callback either way. If every attempt fails, the submission
-stays pending and the backend sweeper marks it stuck.
+With either broker delivery is at least once. The message is acked only after a 2xx or a final 4xx.
+If every attempt fails, it is nacked (requeued on `amqp`), so the job is graded again (by any
+grader). With `amqp`, after 5 such failures on one grader the job is acked anyway and its submission
+stays pending: a requeued message keeps its place, so a job the backend never accepts would block the
+queue. With `gcppubsub` there is no cap: a nack does not block other messages, so the job comes back
+until the backend answers, also through a backend deploy of several minutes. The backend ignores a second
+result for a final row. With `amqp` a killed grader's jobs come back as soon as RabbitMQ sees its
+connection close.
 
-With `gcppubsub` delivery is at least once:
+With `gcppubsub`:
 
-- The message is acked only after a 2xx or a final 4xx. If every attempt fails, it is nacked, so
-  the job is graded again (by any grader). The backend ignores a second result for a final row.
 - A grader holds at most `GRADER_WORKER_COUNT` unacked messages, so graders share the load. Each
   worker slot pulls one message only when it is free. A failed ack or nack is retried every second,
   and the slot pulls nothing new until it lands or the message's lease has lapsed.
 - The grader keeps a 30 s lease on a running job and extends it every 10 s, for up to 1 hour.
-- On SIGTERM the grader stops pulling and waits 5 s for running jobs. Jobs still running then are
-  nacked so another grader takes them at once. A killed grader's jobs come back within 30 s.
+- A killed grader's jobs come back within 30 s.
+
+On SIGTERM (either broker) the grader stops pulling and waits 5 s for running jobs. Then it kills
+the runs still going, sends no result for their jobs and nacks them, so another grader takes them
+at once. The release gets at most 2 s more, so a stop ends within about 7.5 s, before Docker's 10 s
+kill. The systemd units use `KillMode=mixed`, so the stop signal reaches only the grader, not its
+isolate processes: an isolate that gets the signal ends the box, and the run must not become a verdict.
+The 7.5 s bound ends when the consumer has stopped. `Pool.Close` runs after it, cleaning each idle
+box (each unmount may wait up to 2 s on a busy box), and is not part of the bound.
+
+After a crash (`kill -9`) `KillMode=mixed` SIGKILLs the rest of the unit at once. Each run has an
+isolate keeper (`isolate --run`) and its child, the proxy, which is init of the box's PID namespace.
+Both are in the unit cgroup, so both get the SIGKILL, and the proxy's death makes the kernel kill
+the student program too, although only the program's cgroup lives under `isolate.service`. Two
+backstops cover a box whose proxy is gone some other way: the units' `ExecStopPost` writes `1` to `cgroup.kill` of boxes 1 to
+`GRADER_WORKER_COUNT` after every exit, and at start the grader kills and cleans every box of its
+pool before it takes a job. `TimeoutStopSec=10s` bounds a stop that hangs.
 
 ### Limits
 

@@ -16,9 +16,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// isolate is installed with PREFIX=/usr/local in the grader image. Its root is
-// read from the same configuration as the executable, never from a box file.
-var isolateBoxRoot = sync.OnceValues(func() (string, error) {
+// isolate is installed with PREFIX=/usr/local in the grader image. Its paths
+// are read from the same configuration as the executable, never from a box file.
+func isolateConfig(want string) (string, error) {
 	file, err := os.Open("/usr/local/etc/isolate")
 	if err != nil {
 		return "", err
@@ -27,16 +27,44 @@ var isolateBoxRoot = sync.OnceValues(func() (string, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		key, value, ok := strings.Cut(scanner.Text(), "=")
-		if ok && strings.TrimSpace(key) == "box_root" {
-			root := strings.TrimSpace(value)
-			if !filepath.IsAbs(root) || filepath.Clean(root) == "/" {
-				return "", errors.New("invalid isolate box_root")
-			}
-			return root, nil
+		if ok && strings.TrimSpace(key) == want {
+			return strings.TrimSpace(value), nil
 		}
 	}
-	return "", errors.Join(errors.New("isolate box_root not configured"), scanner.Err())
+	return "", errors.Join(fmt.Errorf("isolate %s not configured", want), scanner.Err())
+}
+
+var isolateBoxRoot = sync.OnceValues(func() (string, error) {
+	root, err := isolateConfig("box_root")
+	if err != nil {
+		return "", err
+	}
+	if !filepath.IsAbs(root) || filepath.Clean(root) == "/" {
+		return "", errors.New("invalid isolate box_root")
+	}
+	return root, nil
 })
+
+// isolateCgroupRoot is the parent of the box cgroups. With `auto:<file>`
+// isolate.service writes the path into <file> when it starts, so it is read
+// on every call, not cached.
+func isolateCgroupRoot() (string, error) {
+	root, err := isolateConfig("cg_root")
+	if err != nil {
+		return "", err
+	}
+	if file, ok := strings.CutPrefix(root, "auto:"); ok {
+		content, err := os.ReadFile(file) //nolint:gosec // the file named by cg_root in isolate's root-owned config.
+		if err != nil {
+			return "", fmt.Errorf("read isolate cg_root: %w", err)
+		}
+		root = strings.TrimSpace(string(content))
+	}
+	if !filepath.IsAbs(root) || !strings.HasPrefix(filepath.Clean(root), "/sys/fs/cgroup/") {
+		return "", fmt.Errorf("invalid isolate cg_root %q", root)
+	}
+	return filepath.Clean(root), nil
+}
 
 func recoverBoxStorage(boxID int) error {
 	root, err := isolateBoxRoot()
@@ -75,4 +103,25 @@ func unmountBoxStorage(path string) error {
 		onUnmountBusy()
 		time.Sleep(min(wait, time.Until(deadline)))
 	}
+}
+
+// KillBoxProcesses kills every process in the box's cgroup. A box left by a
+// crashed grader can still run a student program, and its isolate keeper then
+// holds the box lock, so neither --cleanup nor --init can touch the box. The
+// keeper exits once the program is gone. A box without a cgroup has nothing to kill.
+func KillBoxProcesses(boxID int) error {
+	root, err := isolateCgroupRoot()
+	if err != nil {
+		return err
+	}
+	box := filepath.Join(root, "box-"+strconv.Itoa(boxID))
+	if _, err := os.Stat(box); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	kill, err := os.OpenFile(filepath.Join(box, "cgroup.kill"), os.O_WRONLY, 0) //nolint:gosec // box is under the checked absolute /sys/fs/cgroup/ prefix.
+	if err != nil {
+		return err
+	}
+	_, err = kill.WriteString("1")
+	return errors.Join(err, kill.Close())
 }

@@ -1,11 +1,11 @@
 package machinery
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	ceruviaConfig "github.com/Ceruvia/grader/internal/config"
 	backendsiface "github.com/RichardKnop/machinery/v2/backends/iface"
@@ -19,10 +19,24 @@ import (
 type callbackBackend struct {
 	backendsiface.Backend
 	cfg *ceruviaConfig.ServerConfig
-	// unanswered, when set, receives each signature whose callback got no final
-	// answer, so the Pub/Sub broker redelivers its message instead of acking it.
-	unanswered *sync.Map
+	// stop marks each job whose callback got no final answer unanswered, so its
+	// broker redelivers it. Once the stopping grader released its running jobs,
+	// their results are dropped: a run the stop cut short must not become a verdict.
+	stop *stopState
+	// capFailures drops a job after maxCallbackFailures failed callbacks. AMQP
+	// only: a requeued message keeps its place, so a job whose callback always
+	// fails would starve every job behind it. A Pub/Sub nack does not block the
+	// other messages, so a job is redelivered until the Backend answers, also
+	// through a Backend deploy of several minutes.
+	capFailures bool
+	// failures counts the failed callbacks of each job by signature UUID.
+	// shortcut: a count that never reaches the cap stays in memory until restart, fine for one exam day.
+	failures sync.Map
 }
+
+// maxCallbackFailures is how many failed callbacks a job gets before it is
+// acked anyway and its submission left pending, which the Backend marks stuck.
+const maxCallbackFailures = 5
 
 // callbackBody is the grade-callback request body, agreed with the Backend.
 type callbackBody struct {
@@ -49,6 +63,11 @@ func (b *callbackBackend) SetStateFailure(signature *tasks.Signature, taskErr st
 
 func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	fields := log.Fields{"task": signature.Name, "uuid": signature.UUID, "state": body.State}
+	if b.stop.released.Err() != nil {
+		b.stop.unanswered.Store(signature, struct{}{})
+		log.WithFields(fields).Warn("Grader stopping, result dropped, job released for redelivery")
+		return
+	}
 	if len(signature.Args) == 0 {
 		log.WithFields(fields).Error("Task has no submission id, callback skipped")
 		return
@@ -72,17 +91,29 @@ func (b *callbackBackend) post(signature *tasks.Signature, body callbackBody) {
 	}
 
 	callbackUrl := strings.ReplaceAll(b.cfg.BackendCallbackEndpoint, "{submission_id}", submissionId)
-	err = postCallback(context.Background(), callbackClient, callbackUrl, b.cfg.BackendAPIToken, payload, callbackBackoff)
+	// A release cancels a callback in flight, so a stop never waits on its retries.
+	err = postCallback(b.stop.released, callbackClient, callbackUrl, b.cfg.BackendAPIToken, payload, callbackBackoff)
 	switch {
 	case err == nil:
+		b.failures.Delete(signature.UUID)
 		log.WithFields(fields).Info("Finished task")
 	case errors.Is(err, errCallbackRejected):
+		b.failures.Delete(signature.UUID)
 		log.WithFields(fields).WithError(err).Error("Backend rejected the result")
-	case b.unanswered != nil:
-		b.unanswered.Store(signature, struct{}{})
+	case b.stop.released.Err() != nil:
+		b.stop.unanswered.Store(signature, struct{}{})
+		log.WithFields(fields).WithError(err).Warn("Grader stopping, callback cancelled, job released for redelivery")
+	case !b.capFailures:
+		b.stop.unanswered.Store(signature, struct{}{})
 		log.WithFields(fields).WithError(err).Error("Callback failed, job released for redelivery")
 	default:
-		// The backend sweeper marks a stuck submission.
-		log.WithFields(fields).WithError(err).Error("Callback failed, submission left pending")
+		count, _ := b.failures.LoadOrStore(signature.UUID, new(atomic.Int32))
+		if n := count.(*atomic.Int32).Add(1); n >= maxCallbackFailures {
+			b.failures.Delete(signature.UUID)
+			log.WithFields(fields).WithError(err).Errorf("Callback failed %d times, job dropped, submission left pending", n)
+			return
+		}
+		b.stop.unanswered.Store(signature, struct{}{})
+		log.WithFields(fields).WithError(err).Error("Callback failed, job released for redelivery")
 	}
 }

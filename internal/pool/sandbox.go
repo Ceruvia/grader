@@ -24,8 +24,23 @@ func NewSandboxPool(isolatePath string, size int) error {
 		return errors.New("pool size must be > 0")
 	}
 
+	// A crash leaves boxes behind, maybe with student programs still running.
+	// Kill them all first, so none runs on while the boxes before it are
+	// cleaned. A failed kill is retried by CleanBox below.
+	for i := 1; i <= size; i++ {
+		if err := sandboxes.KillBoxProcesses(i); err != nil {
+			log.WithField("sandboxId", i).WithError(err).Error("Stale sandbox kill failed")
+		}
+	}
 	ch := make(chan sandboxSlot, size)
 	for i := 1; i <= size; i++ {
+		// Clean every box before it serves a job. One that cannot be cleaned
+		// stays quarantined until Acquire retries it.
+		if err := sandboxes.CleanBox(isolatePath, i); err != nil {
+			log.WithField("sandboxId", i).WithError(err).Error("Stale sandbox cleanup failed, quarantining box")
+			ch <- sandboxSlot{sb: &sandboxes.IsolateSandbox{IsolatePath: isolatePath, BoxId: i}, cleanupRequired: true}
+			continue
+		}
 		sb, err := sandboxes.CreateIsolateSandbox(isolatePath, i)
 		if err != nil {
 			close(ch)
@@ -73,7 +88,9 @@ func (p *SandboxPool) initialize(slot sandboxSlot) (*sandboxes.IsolateSandbox, e
 		return slot.sb, nil
 	}
 	if slot.cleanupRequired {
-		if err := slot.sb.Cleanup(); err != nil {
+		// CleanBox, not Cleanup: a box quarantined at start was never
+		// initialized by this process, and a live process may still hold it.
+		if err := sandboxes.CleanBox(slot.sb.IsolatePath, slot.sb.BoxId); err != nil {
 			p.pool <- slot
 			return nil, err
 		}

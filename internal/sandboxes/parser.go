@@ -54,6 +54,10 @@ func ParseMetaResult(metaFilePath string) (SandboxExecutionResult, error) {
 		status = NONZERO_EXIT_CODE
 	case "SG":
 		status = KILLED_ON_SIGNAL
+		// isolate itself got the signal (a stop of the grader), so the program did nothing wrong.
+		if message == "Interrupted" {
+			status = INTERNAL_ERROR
+		}
 	case "TO":
 		status = TIMED_OUT
 	case "XX":

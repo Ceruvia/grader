@@ -1,6 +1,7 @@
 package sandboxes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,12 +9,23 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/Ceruvia/grader/internal/helper"
 	"github.com/Ceruvia/grader/internal/helper/command"
 	"github.com/Ceruvia/grader/internal/helper/diagnostics"
 	"github.com/Ceruvia/grader/internal/helper/files"
 )
+
+// runs bounds every box run of this process.
+var runs = context.Background()
+
+// BoundRuns makes the end of ctx kill every running box and fail every later
+// run. A grader binds it to the release of its jobs at start, before any run:
+// a stop that releases the jobs ends their runs with the same cancel, so a run
+// it killed is always seen as released and never becomes a verdict.
+func BoundRuns(ctx context.Context) { runs = ctx }
 
 type IsolateSandbox struct {
 	IsolatePath string
@@ -186,7 +198,12 @@ func (s *IsolateSandbox) Execute(runCommand command.CommandBuilder, redirectionF
 
 	// No shell: the program is the operator's isolate binary, and every argument that can carry a
 	// submission filename follows `--run --`, so isolate runs it inside the box and never parses it.
-	cmd := exec.Command(command.Program, command.Args...) //nolint:gosec // see above.
+	cmd := exec.CommandContext(runs, command.Program, command.Args...) //nolint:gosec // see above.
+	// SIGTERM, not Go's default SIGKILL: isolate then kills the box and writes its meta file itself. The
+	// keeper's child, the proxy, is init of the box PID namespace, so the program dies when the proxy does.
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	// A keeper that ignores the SIGTERM gets SIGKILL, so a released run never hangs.
+	cmd.WaitDelay = 2 * time.Second
 	var output diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err := cmd.Run()
@@ -231,10 +248,47 @@ func (s *IsolateSandbox) Cleanup() error {
 	return os.RemoveAll(TaskDir(s.BoxId))
 }
 
+// CleanBox removes whatever a previous grader process left in the box, live
+// processes included. It does nothing to a box that was never initialized.
+func CleanBox(isolatePath string, boxId int) error {
+	if err := KillBoxProcesses(boxId); err != nil {
+		return fmt.Errorf("kill box processes: %w", err)
+	}
+	if err := recoverBoxStorage(boxId); err != nil {
+		return err
+	}
+	stale := IsolateSandbox{IsolatePath: isolatePath, BoxId: boxId}
+	// The keeper releases the box lock a moment after its program is killed.
+	var err error
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if err = stale.cleanUpIsolate(); err == nil {
+			return os.RemoveAll(TaskDir(boxId))
+		}
+		// --cleanup rejects a box whose --init failed half way. --init recovers it.
+		if _, initErr := stale.initIsolate(); initErr != nil {
+			err = errors.Join(err, initErr)
+		}
+	}
+	return err
+}
+
 func (s *IsolateSandbox) initSandbox() error {
 	if err := recoverBoxStorage(s.BoxId); err != nil {
 		return err
 	}
+	root, err := s.initIsolate()
+	if err != nil {
+		return err
+	}
+	s.BoxDir = root + "/box"
+	if err := mountBoxStorage(s.BoxDir); err != nil {
+		return errors.Join(fmt.Errorf("mount bounded box storage: %w", err), s.cleanUpIsolate())
+	}
+	return nil
+}
+
+// initIsolate runs isolate --init and returns the box root it prints.
+func (s *IsolateSandbox) initIsolate() (string, error) {
 	command := command.GetCommandBuilder(s.IsolatePath)
 	command.AddArgs("-b " + strconv.Itoa(s.BoxId))
 	command.AddArgs("--cg")
@@ -243,17 +297,10 @@ func (s *IsolateSandbox) initSandbox() error {
 	cmd := exec.Command(command.Program, command.Args...) //nolint:gosec // operator's isolate binary, args are the box id and fixed flags.
 	var stdout diagnostics.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stdout
-	err := cmd.Run()
-
-	if err == nil && cmd.ProcessState.ExitCode() == 0 {
-		s.BoxDir = strings.TrimSpace(stdout.String()) + "/box"
-		if err := mountBoxStorage(s.BoxDir); err != nil {
-			return errors.Join(fmt.Errorf("mount bounded box storage: %w", err), s.cleanUpIsolate())
-		}
-		return nil
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("initialize isolate: %w: %s", err, stdout.String())
 	}
-
-	return fmt.Errorf("initialize isolate: %w: %s", err, stdout.String())
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 func (s *IsolateSandbox) cleanUpIsolate() error {

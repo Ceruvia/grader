@@ -532,6 +532,16 @@ func TestParser(t *testing.T) {
 			Message:    "Time limit exceeded (wall clock)",
 			IsKilled:   true,
 		}},
+		// isolate's own SIGTERM (a stop of the grader), captured from isolate v2.1. Not the program's fault.
+		{"Keeper Interrupted", "interrupted.meta", sandboxes.SandboxExecutionResult{
+			Status:     sandboxes.INTERNAL_ERROR,
+			ExitSignal: 15,
+			Time:       1.004,
+			WallTime:   1.004,
+			Memory:     256,
+			Message:    "Interrupted",
+			IsKilled:   true,
+		}},
 	}
 
 	for _, test := range Tests {
