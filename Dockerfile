@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1
-# ubuntu:22.04 is multi-arch; jrei/systemd-ubuntu only ships amd64.
+# ubuntu:24.04 (LTS) is multi-arch; jrei/systemd-ubuntu only ships amd64. Pinned by index digest;
+# Dependabot bumps the digest only, LTS moves are manual and need the isolate tests (README, Tests).
 # Stages: isolate (builds isolate, nothing of it but the installed files leaves),
 # base (systemd + isolate + language toolchains), build (grader binary),
 # test (base + Go, source in /src), runtime (default, no Go toolchain).
 
 # ---------- isolate ----------
 # Build tools (git, libcap-dev, libsystemd-dev, pkg-config) live only in this stage.
-FROM ubuntu:22.04 AS isolate
+FROM ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b AS isolate
 
 # Ubuntu images delete downloaded packages after every apt run. Turn that off so the cache mounts work.
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
@@ -25,7 +26,7 @@ RUN git clone --depth 1 --branch v2.1 https://github.com/ioi/isolate.git /tmp/is
     make -j"$(nproc)" install DESTDIR=/out
 
 # ---------- base ----------
-FROM ubuntu:22.04 AS base
+FROM ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b AS base
 
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
@@ -37,8 +38,6 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
 # python-is-python3 gives /usr/bin/python, which the Olympia makefiles call.
 # libcap2 and libsystemd0 (isolate runtime libs) come in with systemd. The apt lists
 # stay in the cache mount, so they are not in the image.
-# The --only-upgrade step clears grype --fail-on high (CVE-2026-109518 in apt). It is targeted so the
-# student toolchain (gcc, python3, ghc) does not move: patch bumps can change grading verdicts.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -46,8 +45,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       systemd systemd-sysv \
       ca-certificates build-essential zip unzip \
       python3 python-is-python3 ghc && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade \
-      apt libapt-pkg6.0 libpcre2-8-0 && \
     rm -f /lib/systemd/system/multi-user.target.wants/* \
       /etc/systemd/system/*.wants/* \
       /lib/systemd/system/local-fs.target.wants/* \
@@ -57,7 +54,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       /lib/systemd/system/systemd-update-utmp*
 
 # 1b) Debian symlinks ghc's package db to /var/lib/ghc, which isolate boxes do not bind (only /usr etc.).
-RUN rm /usr/lib/ghc/package.conf.d && cp -a /var/lib/ghc/package.conf.d /usr/lib/ghc/package.conf.d
+RUN rm /usr/lib/ghc/lib/package.conf.d && cp -a /var/lib/ghc/package.conf.d /usr/lib/ghc/lib/package.conf.d
 
 # 2) isolate v2.1 from the isolate stage (setuid bit and units come along)
 COPY --from=isolate /out/ /
