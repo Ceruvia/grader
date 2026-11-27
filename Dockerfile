@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # ubuntu:24.04 (LTS) is multi-arch; jrei/systemd-ubuntu only ships amd64. Pinned by index digest;
 # Dependabot bumps the digest only, LTS moves are manual and need the isolate tests (README, Tests).
+# Only the base digest is pinned. The toolchain patch levels (gcc, python3, ghc) follow noble-updates at build time.
 # Stages: isolate (builds isolate, nothing of it but the installed files leaves),
 # base (systemd + isolate + language toolchains), build (grader binary),
 # test (base + Go, source in /src), runtime (default, no Go toolchain).
