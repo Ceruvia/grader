@@ -15,8 +15,12 @@ updates:
       gomod-minor-patch:
         update-types: [minor, patch]
 
-  # Dockerfile base images: digest bumps for the pinned golang toolchain.
+  # Dockerfile base images: digest bumps for the pinned golang toolchain and the Ubuntu LTS base.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # LTS moves are manual: they change the student toolchain and must pass the isolate tests.
+      - dependency-name: ubuntu
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

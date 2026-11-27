@@ -89,7 +89,7 @@ func TestCppStandardsSelectFlags(t *testing.T) {
 	}
 
 	// __cplusplus pins the exact standard, so a name mapped to any other flag gets WA.
-	// Values observed with g++ 11.4.0 in the grader image.
+	// The values are fixed by the C++ standard, not the compiler (now g++ 13.3 on Ubuntu 24.04).
 	printStandard := map[string]string{
 		"main.cpp": "#include <cstdio>\nint main() { std::printf(\"%ld\\n\", (long)__cplusplus); }\n",
 	}
