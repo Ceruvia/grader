@@ -70,7 +70,7 @@ func TestHaskellCompileCheck(t *testing.T) {
 						}
 					}
 					// archiveServer zeroes mtimes just like Backend's zip.Writer.Create:
-					// GHC 8.8 otherwise trusts the same-mtime .o/.hi and skips the .hs.
+					// GHC otherwise trusts the same-mtime .o/.hi and skips the .hs.
 					server := archiveServer(t, map[string]map[string]string{
 						"/grader.zip": teacher, "/submission.zip": submission,
 					})
